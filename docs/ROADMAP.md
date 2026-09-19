@@ -13,7 +13,7 @@ Marca `[x]` al completar. No avances de fase sin cumplir su "Hecho cuando".
 > **Nota de cierre (2026-09-19).** Hecho: scaffold Next 16 + TS estricto + Tailwind 4 + ESLint, Vitest, scripts `lint/typecheck/test/check`, carpetas de AGENTS.md, `docs/DECISIONS.md`, layout `100dvh` con safe areas y tema claro de alto contraste, tipos de dominio, store Zustand `persist` v1 con migración y validación Zod (11 tests). Pendiente: nada. Probar: `npm run dev`, abrir en 360 px → encabezado "RutaTiendas" y el mensaje "Aún no hay tiendas en tu ruta." sin scroll horizontal.
 
 ## Fase 1 — Tiendas
-- [ ] `lib/geo`: haversine + parser de links (puro) con tests por formato
+- [x] `lib/geo`: haversine + parser de links (puro) con tests por formato
 - [ ] `POST /api/resolve-link` con lista blanca, redirecciones, timeout, fallbacks (HTML → Nominatim) + tests
 - [ ] Componente de mapa (Leaflet, solo cliente) con marcadores
 - [ ] Formulario "Agregar tienda": pegar, extraer URL/nombre, resolver
