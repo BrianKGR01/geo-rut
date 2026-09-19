@@ -16,10 +16,10 @@ Marca `[x]` al completar. No avances de fase sin cumplir su "Hecho cuando".
 - [x] `lib/geo`: haversine + parser de links (puro) con tests por formato
 - [x] `POST /api/resolve-link` con lista blanca, redirecciones, timeout, fallbacks (HTML → Nominatim) + tests
 - [x] Componente de mapa (Leaflet, solo cliente) con marcadores
-- [ ] Formulario "Agregar tienda": pegar, extraer URL/nombre, resolver
-- [ ] Confirmación con pin arrastrable + aviso de ubicación aproximada
-- [ ] Selector manual a pantalla completa
-- [ ] Editar / eliminar tienda
+- [x] Formulario "Agregar tienda": pegar, extraer URL/nombre, resolver
+- [x] Confirmación con pin arrastrable + aviso de ubicación aproximada
+- [x] Selector manual a pantalla completa
+- [x] Editar / eliminar tienda
 **Hecho cuando:** criterio de aceptación 1 y 7 del PRD.
 
 ## Fase 2 — Planificación de ruta
