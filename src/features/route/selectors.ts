@@ -1,7 +1,7 @@
-import type { AppData, Stop } from "@/types/domain";
+import type { RouteData, Stop } from "@/types/domain";
 
 /** Paradas en el orden de visita; las que falten en `stopOrder` van al final. */
-export function orderedStops(data: AppData): Stop[] {
+export function orderedStops(data: RouteData): Stop[] {
   const position = new Map(data.route.stopOrder.map((id, index) => [id, index]));
   const rank = (stop: Stop) => position.get(stop.id) ?? Number.MAX_SAFE_INTEGER;
   return [...data.stops].sort((a, b) => rank(a) - rank(b));
@@ -13,7 +13,7 @@ export interface StopGroups {
   remaining: Stop[];
 }
 
-export function groupStops(data: AppData): StopGroups {
+export function groupStops(data: RouteData): StopGroups {
   const ordered = orderedStops(data);
   return {
     delivered: ordered.filter((stop) => stop.status === "delivered"),
@@ -22,7 +22,7 @@ export function groupStops(data: AppData): StopGroups {
 }
 
 /** La tienda que toca ahora: la que se está entregando, el destino fijado o la primera pendiente. */
-export function nextStop(data: AppData): Stop | undefined {
+export function nextStop(data: RouteData): Stop | undefined {
   const { remaining } = groupStops(data);
   return (
     remaining.find((stop) => stop.status === "delivering") ??

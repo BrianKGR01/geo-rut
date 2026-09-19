@@ -25,7 +25,7 @@ export function DeleteStopButton({ stop, onDeleted }: DeleteStopButtonProps) {
 
   return (
     <>
-      <Button variant="danger" onClick={() => setStage("confirm")}>
+      <Button variant="danger" icon="trash" onClick={() => setStage("confirm")}>
         Eliminar tienda
       </Button>
       {stage === "confirm" && (

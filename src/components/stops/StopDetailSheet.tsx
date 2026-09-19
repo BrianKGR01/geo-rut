@@ -1,9 +1,10 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
+import { TextField } from "@/components/ui/TextField";
 import { STATUS_LABEL } from "@/features/route/selectors";
 import { useAppStore } from "@/lib/storage/store";
 import type { Stop } from "@/types/domain";
@@ -28,13 +29,15 @@ export function StopDetailSheet({ stop, onClose, deliveryActions }: StopDetailSh
   const updateStop = useAppStore((state) => state.updateStop);
   const [name, setName] = useState(stop.name);
   const [picking, setPicking] = useState(false);
-  const nameId = useId();
   const nameChanged = name.trim() !== "" && name.trim() !== stop.name;
 
   if (picking) {
     return (
       <ManualPickerStep
-        initialCenter={stop}
+        title="Mover tienda"
+        initialView={{ lat: stop.lat, lng: stop.lng, zoom: 17 }}
+        followFirstFix={false}
+        confirmLabel="Guardar ubicación"
         onBack={() => setPicking(false)}
         onUse={(position) => {
           updateStop(stop.id, { location: { ...position, coordsSource: "manual" } });
@@ -49,33 +52,22 @@ export function StopDetailSheet({ stop, onClose, deliveryActions }: StopDetailSh
       <div className="flex flex-col gap-4">
         <p className="text-base">
           <span className="font-bold">{STATUS_LABEL[stop.status]}</span>
-          <span className="text-ink-soft"> · {SOURCE_LABEL[stop.coordsSource]}</span>
+          <span className="text-soft"> · {SOURCE_LABEL[stop.coordsSource]}</span>
         </p>
         {stop.note && <Banner>Observación: {stop.note}</Banner>}
         {deliveryActions}
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor={nameId} className="font-semibold">
-            Nombre
-          </label>
-          <input
-            id={nameId}
-            className="w-full rounded-xl border-2 border-ink bg-paper px-3 py-3 text-base"
-            value={name}
-            maxLength={80}
-            autoComplete="off"
-            onChange={(event) => setName(event.target.value)}
-          />
+        <section className="flex flex-col gap-3 rounded-xl border-2 border-line bg-card p-3">
+          <TextField label="Nombre de la tienda" value={name} onChange={setName} />
           {nameChanged && (
-            <Button className="mt-2" onClick={() => updateStop(stop.id, { name })}>
+            <Button icon="check" onClick={() => updateStop(stop.id, { name })}>
               Guardar nombre
             </Button>
           )}
-        </div>
-
-        <Button variant="secondary" onClick={() => setPicking(true)}>
-          Cambiar ubicación
-        </Button>
+          <Button variant="secondary" icon="map-pin" onClick={() => setPicking(true)}>
+            Cambiar ubicación
+          </Button>
+        </section>
         <DeleteStopButton stop={stop} onDeleted={onClose} />
       </div>
     </Sheet>

@@ -20,7 +20,8 @@ const chunk = (type, data) => {
   return Buffer.concat([len, body, sum]);
 };
 
-const BLUE = [11, 79, 214], WHITE = [255, 255, 255];
+// Asfalto y amarillo señal: la misma identidad que la app.
+const BLUE = [20, 24, 29], WHITE = [255, 196, 0];
 
 // Forma en coordenadas 0..1: pin blanco (círculo + punta) con hueco azul. `scale` reduce el dibujo (zona segura maskable).
 function colorAt(x, y, scale, rounded) {

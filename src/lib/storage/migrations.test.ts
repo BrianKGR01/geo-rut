@@ -18,8 +18,10 @@ describe("migratePersisted", () => {
     const state = {
       stops: [v1Stop],
       route: { status: "draft", stopOrder: ["a"], orderMode: "manual" },
+      settings: { theme: "dark", startMode: "gps" },
     };
     const result = migratePersisted(state, SCHEMA_VERSION);
+    expect(result.data.settings.theme).toBe("dark");
     expect(result.ok).toBe(true);
     expect(result.data.stops).toHaveLength(1);
     expect(result.data.route.stopOrder).toEqual(["a"]);
@@ -35,9 +37,18 @@ describe("migratePersisted", () => {
     expect(result.data.route.orderMode).toBe("manual");
   });
 
+  it("migra v1 agregando los ajustes por defecto sin perder tiendas ni ruta", () => {
+    const state = { stops: [v1Stop], route: { status: "active", stopOrder: ["a"], orderMode: "optimized" } };
+    const result = migratePersisted(state, 1);
+    expect(result.ok).toBe(true);
+    expect(result.data.settings).toEqual({ theme: "auto", startMode: "gps" });
+    expect(result.data.route.status).toBe("active");
+    expect(result.data.stops).toHaveLength(1);
+  });
+
   it("devuelve estado vacío y ok=false ante datos corruptos", () => {
-    expect(migratePersisted("basura", 1)).toEqual({ ok: false, data: emptyAppData() });
-    expect(migratePersisted({ stops: [{ id: 1 }], route: {} }, 1).ok).toBe(false);
+    expect(migratePersisted("basura", 2)).toEqual({ ok: false, data: emptyAppData() });
+    expect(migratePersisted({ stops: [{ id: 1 }], route: {} }, 2).ok).toBe(false);
   });
 
   it("rechaza versiones futuras que no sabe leer", () => {
@@ -61,6 +72,7 @@ describe("repairConsistency", () => {
     const data = emptyAppData();
     const stop = { ...v1Stop, coordsSource: "manual" as const, status: "pending" as const };
     const repaired = repairConsistency({
+      ...data,
       stops: [stop, { ...stop, id: "b" }],
       route: { ...data.route, stopOrder: ["zzz", "b", "b"], currentTargetId: "zzz" },
     });

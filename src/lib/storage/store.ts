@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { reduceDelivery, settleRoute, type DeliveryEvent } from "@/features/delivery/reducer";
 import { applyOptimizedOrder, reorderManually } from "@/features/route/orderOps";
+import { chooseFixedStart, chooseGpsStart, freshRoute } from "@/features/route/startPoint";
 import {
   addStop as addStopOp,
   createStop,
@@ -10,7 +11,7 @@ import {
   type NewStopInput,
   type StopPatch,
 } from "@/features/stops/stopsOps";
-import type { AppData, LatLng, LegsCache } from "@/types/domain";
+import type { AppData, FixedStart, LatLng, LegsCache, ThemeMode } from "@/types/domain";
 import { newId } from "./id";
 import { migratePersisted } from "./migrations";
 import { emptyAppData, SCHEMA_VERSION } from "./schema";
@@ -34,7 +35,12 @@ export interface AppActions {
   setDeliveryNote: (stopId: string, note: string) => boolean;
   markDelivered: (stopId: string) => boolean;
   undoStop: (stopId: string) => boolean;
+  /** Borra tiendas y entregas; conserva los ajustes (tema, partida fija). */
   startNewRoute: () => void;
+  setTheme: (theme: ThemeMode) => void;
+  setFixedStart: (point: FixedStart) => void;
+  /** La ruta parte de donde esté el celular; `position` es la ubicación conocida ahora (si la hay). */
+  setGpsStart: (position: LatLng | undefined) => void;
 }
 
 export type AppState = AppData & AppActions;
@@ -110,14 +116,22 @@ export function createAppStore(storage: StateStorage = browserStorage()) {
           setDeliveryNote: (stopId, note) => dispatch({ type: "SET_NOTE", stopId, note }),
           markDelivered: (stopId) => dispatch({ type: "DELIVER", stopId, at: now() }),
           undoStop: (stopId) => dispatch({ type: "UNDO", stopId, at: now() }),
-          startNewRoute: () => set(emptyAppData()),
+          startNewRoute: () =>
+            set((state) => ({ stops: [], route: freshRoute(state.settings, now()) })),
+          setTheme: (theme) => set((state) => ({ settings: { ...state.settings, theme } })),
+          setFixedStart: (point) => set((state) => chooseFixedStart(state, point, now())),
+          setGpsStart: (position) => set((state) => chooseGpsStart(state, position, now())),
         };
       },
       {
         name: STORAGE_KEY,
         version: SCHEMA_VERSION,
         storage: createJSONStorage(() => storage),
-        partialize: (state): AppData => ({ stops: state.stops, route: state.route }),
+        partialize: (state): AppData => ({
+          stops: state.stops,
+          route: state.route,
+          settings: state.settings,
+        }),
         migrate: (persisted, version) => recover(persisted, version),
         merge: (persisted, current) => ({
           ...current,

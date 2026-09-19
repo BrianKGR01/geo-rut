@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 type Tone = "info" | "warn" | "danger" | "ok";
 
 const TONES: Record<Tone, string> = {
-  info: "bg-info-soft border-brand text-ink",
-  warn: "bg-warn-soft border-warn text-ink",
-  danger: "bg-danger-soft border-danger text-ink",
-  ok: "bg-ok-soft border-ok text-ink",
+  info: "bg-via-tint border-via-solid",
+  warn: "bg-warn-tint border-warn-solid",
+  danger: "bg-danger-tint border-danger-solid",
+  ok: "bg-ok-tint border-ok-solid",
 };
 
 interface BannerProps {
@@ -21,7 +21,7 @@ export function Banner({ tone = "info", children, action, role = "status" }: Ban
   return (
     <div
       role={role}
-      className={`flex items-center gap-3 rounded-xl border-l-4 px-3 py-2 text-sm font-medium ${TONES[tone]}`}
+      className={`flex items-center gap-3 rounded-xl border-2 px-3 py-2 text-sm font-semibold text-ink ${TONES[tone]}`}
     >
       <div className="min-w-0 flex-1">{children}</div>
       {action}

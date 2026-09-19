@@ -4,6 +4,7 @@ import { useGeoStore, waitForPosition } from "./geoStore";
 import { optimizePendingOrder } from "./planRoute";
 import { routingProviders } from "./providers";
 import { groupStops } from "./selectors";
+import { plannedOrigin } from "./startPoint";
 
 const POSITION_WAIT_MS = 8000;
 
@@ -15,17 +16,18 @@ export function useOptimizeRoute() {
   const optimize = async () => {
     setOptimizing(true);
     setNotice(undefined);
+    const before = useAppStore.getState();
+    const needsGps = before.route.status === "active" || before.settings.startMode === "gps";
     // Se llama dentro del gesto del usuario: aquí el navegador puede pedir el permiso.
-    useGeoStore.getState().start();
-    const position = await waitForPosition(POSITION_WAIT_MS);
-    const { stops, route, applyOptimization } = useAppStore.getState();
-    const pending = groupStops({ stops, route }).remaining.filter((stop) => stop.status === "pending");
-    const result = await optimizePendingOrder(pending, position, routingProviders);
-    applyOptimization(result.stopIds, position);
-    // Con el permiso negado el aviso permanente de ubicación ya lo explica.
-    if (!position && useGeoStore.getState().status !== "denied") {
-      setNotice("No tengo tu ubicación: ordené partiendo de la primera tienda.");
-    }
+    if (needsGps) useGeoStore.getState().start();
+    const gps = needsGps ? await waitForPosition(POSITION_WAIT_MS) : undefined;
+
+    const state = useAppStore.getState();
+    const origin = plannedOrigin(state, gps);
+    const pending = groupStops(state).remaining.filter((stop) => stop.status === "pending");
+    const result = await optimizePendingOrder(pending, origin, routingProviders);
+    state.applyOptimization(result.stopIds, origin);
+    if (!origin) setNotice("No tengo tu ubicación: ordené partiendo de la primera tienda.");
     setOptimizing(false);
   };
 

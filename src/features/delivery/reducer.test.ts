@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defaultSettings } from "@/lib/storage/schema";
 import type { AppData, Stop } from "@/types/domain";
 import { reduceDelivery, settleRoute, type DeliveryEvent, type ReduceResult } from "./reducer";
 
@@ -21,6 +22,7 @@ const stop = (id: string, extra: Partial<Stop> = {}): Stop => ({
 const data = (stops: Stop[], route: Partial<AppData["route"]> = {}): AppData => ({
   stops,
   route: { status: "active", stopOrder: stops.map((s) => s.id), orderMode: "manual", ...route },
+  settings: defaultSettings(),
 });
 
 function apply(initial: AppData, ...events: DeliveryEvent[]): AppData {

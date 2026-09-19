@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { haversineProvider } from "@/lib/routing/haversineProvider";
 import type { RoutingProvider } from "@/lib/routing/types";
+import { defaultSettings } from "@/lib/storage/schema";
 import type { AppData, Stop } from "@/types/domain";
 import { applyOptimizedOrder, reorderManually } from "./orderOps";
 import {
@@ -27,6 +28,7 @@ const stop = (id: string, lat: number, extra: Partial<Stop> = {}): Stop => ({
 const data = (stops: Stop[], route: Partial<AppData["route"]> = {}): AppData => ({
   stops,
   route: { status: "draft", stopOrder: stops.map((s) => s.id), orderMode: "manual", ...route },
+  settings: defaultSettings(),
 });
 
 const broken: RoutingProvider = {

@@ -28,6 +28,7 @@ export function createStop(input: NewStopInput, id: string, now: string): Stop {
 /** La tienda nueva va al final del orden de visita. */
 export function addStop(data: AppData, stop: Stop): AppData {
   return {
+    ...data,
     stops: [...data.stops, stop],
     route: { ...data.route, stopOrder: [...data.route.stopOrder, stop.id] },
   };
@@ -51,6 +52,7 @@ export function updateStop(data: AppData, id: string, patch: StopPatch): AppData
 export function removeStop(data: AppData, id: string): AppData {
   const { currentTargetId } = data.route;
   return {
+    ...data,
     stops: data.stops.filter((stop) => stop.id !== id),
     route: {
       ...data.route,

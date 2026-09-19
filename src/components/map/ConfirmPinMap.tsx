@@ -33,7 +33,7 @@ export default function ConfirmPinMap({ position, onChange }: ConfirmPinMapProps
   );
 
   return (
-    <BaseMap center={position} zoom={17}>
+    <BaseMap view={{ ...position, zoom: 17 }}>
       <TapToMove onChange={onChange} />
       <Marker
         position={[position.lat, position.lng]}

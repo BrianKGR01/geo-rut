@@ -17,6 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useState } from "react";
+import { Icon } from "@/components/ui/Icon";
 import { formatDistance, formatDuration } from "@/lib/format";
 import type { RouteLeg, Stop } from "@/types/domain";
 import { SortableStopItem } from "./SortableStopItem";
@@ -56,17 +57,20 @@ export function StopListPanel(props: StopListPanelProps) {
   };
 
   return (
-    <div className="flex flex-col gap-2 overflow-x-hidden">
+    <div className="flex flex-col gap-2 overflow-x-hidden pb-1">
       {delivered.length > 0 && (
         <section aria-label="Tiendas entregadas" className="flex flex-col gap-2">
           <button
             type="button"
             onClick={() => setShowDelivered((open) => !open)}
             aria-expanded={showDelivered}
-            className="flex min-h-12 items-center justify-between rounded-xl bg-ok-soft px-3 text-left font-bold text-ok"
+            className="flex min-h-12 items-center justify-between rounded-xl border-2 border-ok-solid bg-ok-tint px-3 text-left font-bold text-ink"
           >
-            <span>Entregadas ({delivered.length})</span>
-            <span aria-hidden="true">{showDelivered ? "▲" : "▼"}</span>
+            <span className="flex items-center gap-2">
+              <Icon name="check" size={20} className="text-ok" />
+              Entregadas ({delivered.length})
+            </span>
+            <Icon name={showDelivered ? "chevron-up" : "chevron-down"} />
           </button>
           {showDelivered &&
             delivered.map((stop) => (

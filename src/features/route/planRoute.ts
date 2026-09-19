@@ -1,6 +1,6 @@
 import { optimizeOpenPath } from "@/lib/routing/optimizer";
 import type { RoutingProvider } from "@/lib/routing/types";
-import type { AppData, LatLng, LegsCache, Stop } from "@/types/domain";
+import type { LatLng, LegsCache, RouteData, Stop } from "@/types/domain";
 import { groupStops } from "./selectors";
 
 export interface Providers {
@@ -13,7 +13,7 @@ export interface Providers {
  * Desde dónde se dibuja la ruta pendiente: lo más reciente entre el punto de partida capturado
  * y la última tienda entregada (se presume que el repartidor sigue ahí).
  */
-export function routeOrigin(data: AppData): LatLng | undefined {
+export function routeOrigin(data: RouteData): LatLng | undefined {
   const { startPoint } = data.route;
   const lastDelivered = data.stops
     .filter((stop) => stop.status === "delivered" && stop.deliveredAt)
@@ -38,7 +38,7 @@ export interface RouteRequest {
 }
 
 /** La ruta que hay que tener calculada para el estado actual, o `null` si no hay nada que dibujar. */
-export function currentRouteRequest(data: AppData): RouteRequest | null {
+export function currentRouteRequest(data: RouteData): RouteRequest | null {
   const { remaining } = groupStops(data);
   const origin = routeOrigin(data);
   if (remaining.length + (origin ? 1 : 0) < 2) return null;

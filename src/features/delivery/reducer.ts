@@ -1,4 +1,5 @@
 import { groupStops } from "@/features/route/selectors";
+import { freshRoute } from "@/features/route/startPoint";
 import type { AppData, LatLng, RoutePlan, Stop } from "@/types/domain";
 
 export type DeliveryEvent =
@@ -23,7 +24,7 @@ const reject = (reason: RejectReason): ReduceResult => ({ ok: false, reason });
 const NOTE_MAX = 500;
 
 function replaceStop(data: AppData, stop: Stop, route: RoutePlan = data.route): AppData {
-  return { stops: data.stops.map((item) => (item.id === stop.id ? stop : item)), route };
+  return { ...data, stops: data.stops.map((item) => (item.id === stop.id ? stop : item)), route };
 }
 
 /**
@@ -35,7 +36,7 @@ export function settleRoute(data: AppData, at: string): AppData {
   const { route } = data;
   if (route.status !== "draft" && data.stops.length === 0) {
     // Se eliminaron todas las tiendas: no queda ruta que ejecutar.
-    return { ...data, route: { status: "draft", stopOrder: [], orderMode: route.orderMode } };
+    return { ...data, route: freshRoute(data.settings, at) };
   }
   if (route.status === "active" && remaining.length === 0 && delivered.length > 0) {
     return { ...data, route: { ...route, status: "finished", finishedAt: at, currentTargetId: undefined } };

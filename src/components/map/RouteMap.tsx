@@ -2,67 +2,60 @@
 
 import L from "leaflet";
 import { useEffect } from "react";
-import { Circle, CircleMarker, Marker, Polyline, useMap } from "react-leaflet";
-import type { MapMarker, UserPosition } from "@/types/map";
-import { BaseMap } from "./BaseMap";
+import { Marker, Polyline, useMap } from "react-leaflet";
+import type { MapMarker, MapView, UserPosition } from "@/types/map";
+import { BaseMap, FlyToUser } from "./BaseMap";
 import { numberedIcon } from "./leafletIcons";
+import { UserDot } from "./UserDot";
 
 interface RouteMapProps {
   markers: MapMarker[];
   path: [number, number][];
   approximate: boolean;
   user?: UserPosition;
+  /** Dónde mirar cuando no hay tiendas ni GPS (país o ciudad aproximada). */
+  fallbackView: MapView;
   /** Cambia cuando hay que volver a encuadrar todo (nueva tienda, nuevo orden, iniciar ruta). */
   fitKey: string;
+  locateRequest: number;
   onMarkerClick?: (id: string) => void;
 }
 
-function FitBounds({ markers, user, fitKey }: Pick<RouteMapProps, "markers" | "user" | "fitKey">) {
+type FitProps = Pick<RouteMapProps, "markers" | "user" | "fitKey" | "fallbackView">;
+
+function FitBounds({ markers, user, fitKey, fallbackView }: FitProps) {
   const map = useMap();
   const hasUser = user !== undefined;
+  const fallbackKey = `${fallbackView.lat},${fallbackView.lng},${fallbackView.zoom}`;
   useEffect(() => {
     const points = markers.map((marker): [number, number] => [marker.lat, marker.lng]);
     if (user) points.push([user.lat, user.lng]);
-    if (points.length === 0) return;
-    map.fitBounds(L.latLngBounds(points), { padding: [36, 36], maxZoom: 16 });
+    if (points.length === 0) map.setView([fallbackView.lat, fallbackView.lng], fallbackView.zoom);
+    else map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 });
     // La posición del usuario cambia todo el tiempo; solo se reencuadra cuando aparece por primera vez.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, fitKey, hasUser]);
+  }, [map, fitKey, hasUser, fallbackKey]);
   return null;
 }
 
 export default function RouteMap(props: RouteMapProps) {
-  const { markers, path, approximate, user, fitKey, onMarkerClick } = props;
+  const { markers, path, approximate, user, fallbackView, fitKey, locateRequest, onMarkerClick } = props;
   return (
-    <BaseMap>
-      <FitBounds markers={markers} user={user} fitKey={fitKey} />
+    <BaseMap view={fallbackView}>
+      <FitBounds markers={markers} user={user} fitKey={fitKey} fallbackView={fallbackView} />
+      <FlyToUser user={user} request={locateRequest} />
       {path.length > 1 && (
         <Polyline
           positions={path}
           pathOptions={{
-            color: "#0b4fd6",
-            weight: 5,
-            opacity: 0.85,
-            dashArray: approximate ? "4 10" : undefined,
+            className: "route-line",
+            weight: 6,
+            opacity: 0.9,
+            dashArray: approximate ? "4 12" : undefined,
           }}
         />
       )}
-      {user && (
-        <>
-          <Circle
-            center={[user.lat, user.lng]}
-            radius={user.accuracy}
-            pathOptions={{ color: "#0b4fd6", weight: 1, fillOpacity: 0.12 }}
-            interactive={false}
-          />
-          <CircleMarker
-            center={[user.lat, user.lng]}
-            radius={8}
-            pathOptions={{ color: "#ffffff", weight: 3, fillColor: "#0b4fd6", fillOpacity: 1 }}
-            interactive={false}
-          />
-        </>
-      )}
+      {user && <UserDot user={user} />}
       {markers.map((marker) => (
         <Marker
           key={marker.id}

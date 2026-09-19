@@ -58,7 +58,26 @@ export interface RoutePlan {
   finishedAt?: string;
 }
 
+export type ThemeMode = "auto" | "light" | "dark";
+/** De dónde parte la ruta: la ubicación actual del celular o un punto fijo guardado. */
+export type StartMode = "gps" | "fixed";
+
+export interface FixedStart extends LatLng {
+  label: string;
+}
+
+/** Preferencias que sobreviven a "Nueva ruta". */
+export interface Settings {
+  theme: ThemeMode;
+  startMode: StartMode;
+  fixedStart?: FixedStart;
+}
+
 export interface AppData {
   stops: Stop[];
   route: RoutePlan;
+  settings: Settings;
 }
+
+/** Lo que necesita la lógica de ruta; así no depende de los ajustes. */
+export type RouteData = Pick<AppData, "stops" | "route">;

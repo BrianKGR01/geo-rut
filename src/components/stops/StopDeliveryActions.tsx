@@ -23,6 +23,7 @@ export function StopDeliveryActions({ stop, onDone }: StopDeliveryActionsProps) 
     if (routeStatus !== "active") return null;
     return (
       <Button
+        icon="check"
         disabled={someoneDelivering}
         onClick={() => {
           if (markArrived(stop.id)) onDone();
@@ -35,7 +36,7 @@ export function StopDeliveryActions({ stop, onDone }: StopDeliveryActionsProps) 
 
   return (
     <>
-      <Button variant="secondary" onClick={() => setConfirmUndo(true)}>
+      <Button variant="secondary" icon="undo" onClick={() => setConfirmUndo(true)}>
         Volver a pendiente
       </Button>
       {confirmUndo && (

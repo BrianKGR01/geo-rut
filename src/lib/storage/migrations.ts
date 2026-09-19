@@ -1,5 +1,5 @@
 import type { AppData } from "@/types/domain";
-import { appDataSchema, emptyAppData, SCHEMA_VERSION } from "./schema";
+import { appDataSchema, defaultSettings, emptyAppData, SCHEMA_VERSION } from "./schema";
 
 type Migration = (state: Record<string, unknown>) => Record<string, unknown>;
 
@@ -20,8 +20,15 @@ const migrateV0toV1: Migration = (state) => {
   };
 };
 
+/** v1 → v2: aparecen los ajustes (tema y punto de partida). */
+const migrateV1toV2: Migration = (state) => ({
+  ...state,
+  settings: isRecord(state.settings) ? state.settings : defaultSettings(),
+});
+
 const MIGRATIONS: Record<number, Migration> = {
   0: migrateV0toV1,
+  1: migrateV1toV2,
 };
 
 /** Garantiza que `stopOrder` y `currentTargetId` sean coherentes con las paradas. */
@@ -40,7 +47,7 @@ export function repairConsistency(data: AppData): AppData {
   }
   const target = data.route.currentTargetId;
   return {
-    stops: data.stops,
+    ...data,
     route: {
       ...data.route,
       stopOrder: order,

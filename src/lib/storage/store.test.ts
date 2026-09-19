@@ -28,7 +28,7 @@ describe("store persistente", () => {
     const id = store.getState().addStop(input);
     expect(store.getState().route.stopOrder).toEqual([id]);
     const saved = JSON.parse(storage.data.get(STORAGE_KEY) ?? "{}");
-    expect(saved.version).toBe(1);
+    expect(saved.version).toBe(2);
     expect(saved.state.stops[0].name).toBe("Bodega Ana");
   });
 
@@ -56,9 +56,33 @@ describe("store persistente", () => {
     expect(store.getState().route.status).toBe("draft");
   });
 
+  it("nueva ruta conserva los ajustes y nace con la partida fija", () => {
+    const store = createAppStore(fakeStorage());
+    store.getState().setTheme("dark");
+    store.getState().setFixedStart({ lat: -17.78, lng: -63.18, label: "Depósito" });
+    store.getState().addStop(input);
+    store.getState().startNewRoute();
+    expect(store.getState().stops).toEqual([]);
+    expect(store.getState().settings).toMatchObject({ theme: "dark", startMode: "fixed" });
+    expect(store.getState().route.startPoint).toMatchObject({ lat: -17.78, lng: -63.18 });
+  });
+
+  it("lee datos guardados por la versión anterior (v1) sin perderlos", () => {
+    const v1 = {
+      state: {
+        stops: [{ id: "a", name: "Bodega", lat: -12, lng: -77, coordsSource: "manual", status: "pending", orderItems: [], createdAt: "2026-01-01T00:00:00.000Z" }],
+        route: { status: "draft", stopOrder: ["a"], orderMode: "manual" },
+      },
+      version: 1,
+    };
+    const store = createAppStore(fakeStorage({ [STORAGE_KEY]: JSON.stringify(v1) }));
+    expect(store.getState().stops).toHaveLength(1);
+    expect(store.getState().settings.startMode).toBe("gps");
+  });
+
   it("con datos corruptos arranca vacío y deja una copia de respaldo", () => {
     const storage = fakeStorage({
-      [STORAGE_KEY]: JSON.stringify({ state: { stops: "x" }, version: 1 }),
+      [STORAGE_KEY]: JSON.stringify({ state: { stops: "x" }, version: 2 }),
     });
     const store = createAppStore(storage);
     expect(store.getState().stops).toEqual([]);

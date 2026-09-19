@@ -1,5 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import "@fontsource/barlow/latin-500.css";
+import "@fontsource/barlow/latin-600.css";
+import "@fontsource/barlow/latin-700.css";
+import "@fontsource/barlow-condensed/latin-600.css";
+import "@fontsource/barlow-condensed/latin-700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +19,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0b4fd6",
+  // La barra superior es color asfalto en ambos temas; la del sistema la acompaña.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#14181d" },
+    { media: "(prefers-color-scheme: dark)", color: "#05070a" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

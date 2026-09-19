@@ -6,6 +6,7 @@ const SIZE: Record<MarkerVariant, number> = {
   next: 40,
   delivering: 40,
   delivered: 26,
+  start: 30,
 };
 
 const HIT_SIZE = 44;

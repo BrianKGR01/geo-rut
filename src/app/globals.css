@@ -1,22 +1,125 @@
 @import "tailwindcss";
 
-/* Tema claro de alto contraste: pensado para leerse al sol. */
-@theme {
-  --color-ink: #0b0f14;
-  --color-ink-soft: #3b4652;
-  --color-paper: #ffffff;
-  --color-surface: #f1f4f7;
-  --color-line: #c3ccd6;
-  --color-brand: #0b4fd6;
-  --color-brand-strong: #083a9e;
-  --color-ok: #0a7a3d;
-  --color-ok-soft: #dcf5e6;
-  --color-warn: #8a4b00;
-  --color-warn-soft: #ffedc7;
-  --color-danger: #b3141f;
-  --color-danger-soft: #fde3e5;
-  --color-info-soft: #dce8ff;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+/*
+ * Lenguaje visual: señalética vial. Barras color asfalto, acción principal en amarillo señal
+ * (contraste ~13:1 con su texto, se lee a pleno sol y de noche), verde vía para "entregado".
+ * Los colores viven en variables para que el tema oscuro sea un cambio de valores, no de clases.
+ */
+:root {
+  color-scheme: light;
+  --page: #e4e8ed;
+  --card: #ffffff;
+  --raised: #f0f3f6;
+  --ink: #12161b;
+  --soft: #424b57;
+  --line: #b4bdc9;
+  --strong: #12161b;
+  --chrome: #14181d;
+  --on-chrome: #ffffff;
+  --signal: #ffc400;
+  --signal-press: #e0ac00;
+  --on-signal: #14181d;
+  --plate: #14181d;
+  --via: #0b4fcf;
+  --via-solid: #0b4fcf;
+  --via-tint: #cfdfff;
+  --ok: #0a6b36;
+  --ok-solid: #0b7a3e;
+  --ok-tint: #c9eed8;
+  --warn: #9a3c06;
+  --warn-solid: #b54708;
+  --warn-tint: #ffdfb0;
+  --danger: #b01923;
+  --danger-solid: #c21f2b;
+  --danger-tint: #fbd0d4;
+  --route: #0b4fcf;
+  --tile-filter: none;
+}
+
+/* Tema oscuro: por preferencia del sistema (salvo que se fuerce el claro) o forzado a mano. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0b0e12;
+    --card: #151a21;
+    --raised: #1e252f;
+    --ink: #f2f4f7;
+    --soft: #a9b3c0;
+    --line: #33404f;
+    --strong: #5d6b7c;
+    --chrome: #05070a;
+    --plate: #2b3644;
+    --via: #82b4ff;
+    --via-solid: #2563eb;
+    --via-tint: #11264a;
+    --ok: #4ade80;
+    --ok-solid: #178a47;
+    --ok-tint: #0f2f1e;
+    --warn: #ffb454;
+    --warn-solid: #c2570c;
+    --warn-tint: #3a2608;
+    --danger: #ff8088;
+    --danger-solid: #d12f3b;
+    --danger-tint: #3a1216;
+    --route: #5aa2ff;
+    --tile-filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.92) saturate(0.6);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0b0e12;
+  --card: #151a21;
+  --raised: #1e252f;
+  --ink: #f2f4f7;
+  --soft: #a9b3c0;
+  --line: #33404f;
+  --strong: #5d6b7c;
+  --chrome: #05070a;
+  --plate: #2b3644;
+  --via: #82b4ff;
+  --via-solid: #2563eb;
+  --via-tint: #11264a;
+  --ok: #4ade80;
+  --ok-solid: #178a47;
+  --ok-tint: #0f2f1e;
+  --warn: #ffb454;
+  --warn-solid: #c2570c;
+  --warn-tint: #3a2608;
+  --danger: #ff8088;
+  --danger-solid: #d12f3b;
+  --danger-tint: #3a1216;
+  --route: #5aa2ff;
+  --tile-filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.92) saturate(0.6);
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-line: var(--line);
+  --color-strong: var(--strong);
+  --color-chrome: var(--chrome);
+  --color-on-chrome: var(--on-chrome);
+  --color-signal: var(--signal);
+  --color-signal-press: var(--signal-press);
+  --color-on-signal: var(--on-signal);
+  --color-plate: var(--plate);
+  --color-via: var(--via);
+  --color-via-solid: var(--via-solid);
+  --color-via-tint: var(--via-tint);
+  --color-ok: var(--ok);
+  --color-ok-solid: var(--ok-solid);
+  --color-ok-tint: var(--ok-tint);
+  --color-warn: var(--warn);
+  --color-warn-solid: var(--warn-solid);
+  --color-warn-tint: var(--warn-tint);
+  --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-tint: var(--danger-tint);
+  --font-sans: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: "Barlow Condensed", "Barlow", system-ui, sans-serif;
 }
 
 html,
@@ -27,26 +130,45 @@ body {
 }
 
 body {
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--page);
+  color: var(--ink);
   font-family: var(--font-sans);
+  font-weight: 500;
   -webkit-tap-highlight-color: transparent;
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-brand);
+  outline: 3px solid var(--via);
   outline-offset: 2px;
 }
 
 .app-shell {
   height: 100dvh;
-  padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
 
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
 .pb-safe {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Solo se anima la posición: si el navegador congela la animación, el contenido igual se ve. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(28px);
+  }
+}
+.sheet-in {
+  animation: sheet-in 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in {
+    animation: none;
+  }
 }
 
 /* Leaflet trae z-index altos; se aíslan para que las hojas y diálogos queden encima. */
@@ -54,9 +176,23 @@ body {
   isolation: isolate;
   z-index: 0;
   font-family: inherit;
+  background: var(--raised);
+}
+.leaflet-tile-pane {
+  filter: var(--tile-filter);
+}
+.leaflet-container .leaflet-control-container .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  color: var(--soft);
+}
+.leaflet-container .leaflet-control-container .leaflet-control-attribution a {
+  color: var(--via);
+}
+.route-line {
+  stroke: var(--route);
 }
 
-/* Marcadores del mapa (L.divIcon). El selector doble le gana al display:block de leaflet.css. */
+/* Marcadores del mapa (L.divIcon): placas numeradas. El selector doble le gana al display:block de leaflet.css. */
 .leaflet-marker-icon.stop-marker-hit {
   display: flex;
   align-items: center;
@@ -66,25 +202,36 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  border: 3px solid #ffffff;
-  background: var(--color-ink);
+  border-radius: 9px;
+  border: 2.5px solid #ffffff;
+  background: #14181d;
   color: #ffffff;
-  font-weight: 800;
-  font-size: 15px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 0.55);
 }
 .stop-marker--next {
-  background: var(--color-brand);
-  font-size: 17px;
+  background: var(--signal);
+  color: var(--on-signal);
+  border-color: #14181d;
+  font-size: 22px;
 }
 .stop-marker--delivering {
-  background: var(--color-warn);
+  background: #b54708;
+  font-size: 22px;
 }
 .stop-marker--delivered {
-  background: var(--color-ok);
+  background: #0b7a3e;
+  font-size: 14px;
+  opacity: 0.9;
+}
+.stop-marker--start {
+  background: #0b4fcf;
+  border-radius: 9999px;
   font-size: 13px;
-  opacity: 0.85;
+  letter-spacing: 0.02em;
 }
 .pin-marker {
   position: relative;
@@ -92,8 +239,8 @@ body {
   height: 36px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: var(--color-danger);
-  border: 3px solid #ffffff;
+  background: var(--signal);
+  border: 3px solid #14181d;
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.5);
 }
 .pin-marker::after {
@@ -101,5 +248,5 @@ body {
   position: absolute;
   inset: 8px;
   border-radius: 9999px;
-  background: #ffffff;
+  background: #14181d;
 }

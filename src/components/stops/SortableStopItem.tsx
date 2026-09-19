@@ -2,6 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Icon } from "@/components/ui/Icon";
 import type { Stop } from "@/types/domain";
 import { StopRow } from "./StopRow";
 
@@ -23,7 +24,7 @@ export function SortableStopItem({ stop, label, legText, highlighted, onOpen }: 
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={isDragging ? "relative z-10 opacity-90 shadow-xl" : undefined}
+      className={isDragging ? "relative z-10 opacity-95 drop-shadow-xl" : undefined}
     >
       <StopRow
         stop={stop}
@@ -39,9 +40,9 @@ export function SortableStopItem({ stop, label, legText, highlighted, onOpen }: 
               {...attributes}
               {...listeners}
               aria-label={`Mover ${stop.name}`}
-              className="flex w-12 shrink-0 touch-none items-center justify-center rounded-r-xl border-l-2 border-line text-2xl text-ink-soft active:bg-surface"
+              className="flex w-12 shrink-0 touch-none items-center justify-center rounded-r-[10px] border-l-2 border-line text-soft active:bg-raised"
             >
-              <span aria-hidden="true">≡</span>
+              <Icon name="grip" size={24} />
             </button>
           )
         }

@@ -47,10 +47,12 @@ Ojo: el GPS del navegador **solo funciona en HTTPS** (o en `localhost`). Por `ht
 ## Cómo usarla
 
 1. **Agregar tienda**: en Google Maps toca *Compartir* → *Copiar*; en la app toca *Agregar tienda* → *Pegar* → *Buscar ubicación*. Verifica el pin (se puede arrastrar) y confirma. Si el link no trae ubicación, se abre el mapa para elegirla a mano.
-2. **Planificar**: *Optimizar ruta* ordena las pendientes desde tu ubicación. Arrastra por el asa **≡** para ordenar a mano (la app nunca vuelve a optimizar sola sobre un orden manual).
-3. **Iniciar ruta** → **Ir a la siguiente** abre Google Maps con el destino. Al volver a la app cerca de la tienda (≤ 120 m) pasa sola a *Entregando*; si el GPS falla, usa **Ya llegué**.
+2. **Planificar**: la primera fila es la **Partida**: tu ubicación actual o un punto fijo que eliges una vez (p. ej. el depósito) y queda guardado. *Optimizar* ordena las pendientes desde ahí. Arrastra por el asa **≡** para ordenar a mano (la app nunca vuelve a optimizar sola sobre un orden manual).
+3. **Iniciar ruta** → **Ir con Google Maps** abre Google Maps con el destino. Al volver a la app cerca de la tienda (≤ 120 m) pasa sola a *Entregando*; si el GPS falla, usa **Ya llegué**.
 4. Escribe una **observación** si hace falta y toca **Entregado**. La app ofrece la siguiente tienda.
 5. Al entregar la última aparece el **resumen**. *Nueva ruta* borra todo (con confirmación).
+
+El botón **atrás** del celular cierra la pantalla abierta (no sale de la app). El ícono de la cabecera cambia el tema: automático, claro (sol) u oscuro (noche).
 
 Durante la ruta, *Ver lista* permite reordenar, agregar o editar tiendas, entregar una fuera de orden (*Entregar igual*) o devolver una a pendiente.
 
@@ -72,7 +74,8 @@ Todos los datos (tiendas, orden, entregas, observaciones) viven en el `localStor
 | Texto del lugar (nombre/dirección), solo si el link no trae coordenadas | Nominatim (OpenStreetMap), desde el servidor | Geocodificación de respaldo |
 | Coordenadas de las tiendas y del punto de partida | OSRM público (`router.project-osrm.org`) | Calcular ruta y tiempos |
 | Teselas del mapa que miras | `tile.openstreetmap.org` | Dibujar el mapa |
-| Destino de la tienda | Google Maps, cuando tocas *Ir a la siguiente* | Navegación |
+| Destino de la tienda | Google Maps, cuando tocas *Ir con Google Maps* | Navegación |
+| Nada extra: tu IP ya llega al servidor como en cualquier web | Tu propio backend (`/api/approx-location`) lee la ciudad aproximada que Vercel deduce de la IP | Centrar el mapa mientras no hay GPS; no se guarda |
 
 No hay analítica, cuentas ni cookies propias.
 

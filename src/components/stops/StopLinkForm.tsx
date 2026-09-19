@@ -4,6 +4,7 @@ import { useId } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
+import { FIELD_CLASS, TextField } from "@/components/ui/TextField";
 import { useHasMounted } from "@/components/ui/useHasMounted";
 
 interface StopLinkFormProps {
@@ -18,12 +19,8 @@ interface StopLinkFormProps {
   onClose: () => void;
 }
 
-const FIELD =
-  "w-full rounded-xl border-2 border-ink bg-paper px-3 py-3 text-base placeholder:text-ink-soft";
-
 export function StopLinkForm(props: StopLinkFormProps) {
   const { name, text, busy, error, onNameChange, onTextChange, onSubmit, onManual, onClose } = props;
-  const nameId = useId();
   const linkId = useId();
   const mounted = useHasMounted();
   const canPaste = mounted && typeof navigator.clipboard?.readText === "function";
@@ -42,11 +39,11 @@ export function StopLinkForm(props: StopLinkFormProps) {
       onClose={onClose}
       footer={
         <>
-          <Button big onClick={onSubmit} disabled={busy || text.trim() === ""}>
-            {busy ? "Buscando ubicación…" : "Buscar ubicación"}
+          <Button big icon="map-pin" onClick={onSubmit} disabled={busy || text.trim() === ""}>
+            {busy ? "Buscando…" : "Buscar ubicación"}
           </Button>
-          <Button variant="secondary" onClick={onManual} disabled={busy}>
-            Elegir en el mapa
+          <Button variant="secondary" icon="locate" onClick={onManual} disabled={busy}>
+            No tengo link: elegir en el mapa
           </Button>
         </>
       }
@@ -59,40 +56,32 @@ export function StopLinkForm(props: StopLinkFormProps) {
         }}
       >
         <div className="flex flex-col gap-1">
-          <div className="flex items-end justify-between">
-            <label htmlFor={linkId} className="font-semibold">
+          <div className="flex items-end justify-between gap-2">
+            <label htmlFor={linkId} className="text-sm font-bold uppercase tracking-wide text-soft">
               Link de Google Maps
             </label>
             {canPaste && (
-              <Button variant="secondary" onClick={paste} disabled={busy}>
+              <Button variant="secondary" icon="clipboard" onClick={paste} disabled={busy}>
                 Pegar
               </Button>
             )}
           </div>
           <textarea
             id={linkId}
-            className={`${FIELD} min-h-28 resize-none`}
-            placeholder="Pega aquí lo que compartiste desde Google Maps"
+            className={`${FIELD_CLASS} min-h-28 resize-none`}
+            placeholder="En Google Maps: Compartir → Copiar. Luego pégalo aquí."
             value={text}
             onChange={(event) => onTextChange(event.target.value)}
             disabled={busy}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={nameId} className="font-semibold">
-            Nombre
-          </label>
-          <input
-            id={nameId}
-            className={FIELD}
-            placeholder="Ej.: Bodega Ana"
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            maxLength={80}
-            autoComplete="off"
-            disabled={busy}
-          />
-        </div>
+        <TextField
+          label="Nombre de la tienda"
+          placeholder="Ej.: Bodega Ana"
+          value={name}
+          onChange={onNameChange}
+          disabled={busy}
+        />
         {error && (
           <Banner tone="danger" role="alert">
             {error}

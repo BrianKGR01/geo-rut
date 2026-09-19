@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AppData } from "@/types/domain";
+import type { AppData, Settings } from "@/types/domain";
 
 const latSchema = z.number().min(-90).max(90);
 const lngSchema = z.number().min(-180).max(180);
@@ -48,16 +48,28 @@ export const routePlanSchema = z.object({
   finishedAt: z.string().optional(),
 });
 
+export const settingsSchema = z.object({
+  theme: z.enum(["auto", "light", "dark"]),
+  startMode: z.enum(["gps", "fixed"]),
+  fixedStart: z.object({ lat: latSchema, lng: lngSchema, label: z.string().max(80) }).optional(),
+});
+
 export const appDataSchema = z.object({
   stops: z.array(stopSchema),
   route: routePlanSchema,
+  settings: settingsSchema,
 });
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
-export function emptyAppData(): AppData {
+export function defaultSettings(): Settings {
+  return { theme: "auto", startMode: "gps" };
+}
+
+export function emptyAppData(settings: Settings = defaultSettings()): AppData {
   return {
     stops: [],
     route: { status: "draft", stopOrder: [], orderMode: "manual" },
+    settings,
   };
 }
