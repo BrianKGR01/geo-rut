@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+import { applyOptimizedOrder, reorderManually } from "@/features/route/orderOps";
 import {
   addStop as addStopOp,
   createStop,
@@ -8,7 +9,7 @@ import {
   type NewStopInput,
   type StopPatch,
 } from "@/features/stops/stopsOps";
-import type { AppData } from "@/types/domain";
+import type { AppData, LatLng, LegsCache } from "@/types/domain";
 import { newId } from "./id";
 import { migratePersisted } from "./migrations";
 import { emptyAppData, SCHEMA_VERSION } from "./schema";
@@ -20,6 +21,12 @@ export interface AppActions {
   addStop: (input: NewStopInput) => string;
   updateStop: (id: string, patch: StopPatch) => void;
   removeStop: (id: string) => void;
+  /** Reorden manual de las tiendas no entregadas. */
+  reorderStops: (remainingIds: string[]) => void;
+  applyOptimization: (pendingIds: string[], origin: LatLng | undefined) => void;
+  /** Fija el punto de partida si todavía no hay uno (primera vez que se conoce la ubicación). */
+  captureStartPoint: (origin: LatLng) => void;
+  saveLegsCache: (cache: LegsCache | undefined) => void;
   startNewRoute: () => void;
 }
 
@@ -45,6 +52,12 @@ function browserStorage(): StateStorage {
   return memoryStorage();
 }
 
+const toStartPoint = (origin: LatLng) => ({
+  lat: origin.lat,
+  lng: origin.lng,
+  capturedAt: new Date().toISOString(),
+});
+
 export function createAppStore(storage: StateStorage = browserStorage()) {
   const recover = (persisted: unknown, version: number): AppData => {
     const result = migratePersisted(persisted, version);
@@ -66,6 +79,16 @@ export function createAppStore(storage: StateStorage = browserStorage()) {
         },
         updateStop: (id, patch) => set((state) => updateStopOp(state, id, patch)),
         removeStop: (id) => set((state) => removeStopOp(state, id)),
+        reorderStops: (remainingIds) => set((state) => reorderManually(state, remainingIds)),
+        applyOptimization: (pendingIds, origin) =>
+          set((state) =>
+            applyOptimizedOrder(state, pendingIds, origin && toStartPoint(origin)),
+          ),
+        captureStartPoint: (origin) =>
+          set((state) =>
+            state.route.startPoint ? state : { route: { ...state.route, startPoint: toStartPoint(origin) } },
+          ),
+        saveLegsCache: (legsCache) => set((state) => ({ route: { ...state.route, legsCache } })),
         startNewRoute: () => set(emptyAppData()),
       }),
       {

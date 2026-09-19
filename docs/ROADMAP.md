@@ -23,12 +23,12 @@ Marca `[x]` al completar. No avances de fase sin cumplir su "Hecho cuando".
 **Hecho cuando:** criterio de aceptación 1 y 7 del PRD.
 
 ## Fase 2 — Planificación de ruta
-- [ ] Hook de geolocalización (permiso tras gesto, precisión, errores)
-- [ ] `RoutingProvider` + implementación OSRM (matriz y ruta) con validación Zod
-- [ ] Optimizador de camino abierto (exacto ≤ 9, NN + 2-opt > 9) + tests
-- [ ] Fallback haversine con aviso
-- [ ] Pantalla dividida mapa/lista, marcadores numerados, polilínea, totales
-- [ ] Drag & drop táctil; `orderMode` manual/optimizado; mapa expandible
+- [x] Hook de geolocalización (permiso tras gesto, precisión, errores)
+- [x] `RoutingProvider` + implementación OSRM (matriz y ruta) con validación Zod
+- [x] Optimizador de camino abierto (exacto ≤ 9, NN + 2-opt > 9) + tests
+- [x] Fallback haversine con aviso
+- [x] Pantalla dividida mapa/lista, marcadores numerados, polilínea, totales
+- [x] Drag & drop táctil; `orderMode` manual/optimizado; mapa expandible
 **Hecho cuando:** criterios 2, 3 y 8.
 
 ## Fase 3 — Ejecución

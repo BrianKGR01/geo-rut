@@ -37,3 +37,16 @@ Formato: fecha — decisión — motivo.
 - **2026-09-19 — `NO_COORDS` abre el selector manual con aviso; el resto de errores se muestran en el formulario** con las opciones "reintentar" (mismo botón) y "Elegir en el mapa".
 - **2026-09-19 — Nombre vacío → `Tienda N`.** No se bloquea el alta por falta de nombre; se puede editar después.
 - **2026-09-19 — "Confirmación extra" al eliminar una entregada con ruta activa = segundo diálogo** explicando que se pierde el registro de la entrega.
+
+## Fase 2
+
+- **2026-09-19 — OSRM verificado contra el servidor público:** `GET /table/v1/driving/{lng,lat;…}?annotations=duration` y `GET /route/v1/driving/{…}?overview=full&geometries=polyline&steps=false`; responde con `Access-Control-Allow-Origin: *`, así que se llama directo desde el navegador (sin proxy propio). Límite asumido de 100 coordenadas en `table`; por encima se usa el respaldo.
+- **2026-09-19 — Geometría como polilínea codificada (precisión 5)** con codificador/decodificador propio (~50 líneas) en vez de una dependencia; es lo que devuelve OSRM y es compacta para localStorage.
+- **2026-09-19 — Respaldo haversine: distancia × 1,3 y 25 km/h.** Estimación urbana razonable para que los totales no sean absurdos cuando no hay servicio; la UI avisa "Ruta aproximada".
+- **2026-09-19 — Celdas `null` de la matriz OSRM se rellenan con la estimación haversine** en vez de descartar toda la matriz.
+- **2026-09-19 — Optimizador:** Held-Karp (DP por subconjuntos) exacto hasta 9 paradas; por encima vecino más cercano + 2-opt + reubicación evaluando el costo completo (la matriz es asimétrica), y si el resultado fuera peor que el orden de entrada se devuelve el de entrada.
+- **2026-09-19 — Origen de la ruta dibujada = lo más reciente entre `startPoint` y la última tienda entregada.** No se usa la posición GPS en vivo como origen: cambiaría con cada lectura y dispararía recálculos constantes contra OSRM. `startPoint` se captura al activar la ubicación (si no había), al optimizar y al iniciar la ruta.
+- **2026-09-19 — Sin ubicación, "Optimizar" deja fija la primera tienda del orden actual** (PRD RF-6) y lo avisa.
+- **2026-09-19 — Optimizar solo reordena las `pending`;** la tienda `delivering` queda primera y no es arrastrable (se está entregando ahora).
+- **2026-09-19 — Recalculo con debounce de 600 ms y clave `origen|id@lat,lng…`** (5 decimales). Una ruta aproximada se reintenta al evento `online` o al volver a la app, no en bucle.
+- **2026-09-19 — Geolocalización en un store Zustand no persistido** (`geoStore`): varios componentes necesitan la posición (mapa, optimizar, llegada). El `watchPosition` se pausa con la página oculta y al cargar solo se reanuda solo si el permiso ya estaba concedido (Permissions API); si no, espera al gesto.

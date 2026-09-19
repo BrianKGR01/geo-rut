@@ -1,21 +1,62 @@
 "use client";
 
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type Modifier,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { useState } from "react";
-import type { Stop } from "@/types/domain";
+import { formatDistance, formatDuration } from "@/lib/format";
+import type { RouteLeg, Stop } from "@/types/domain";
+import { SortableStopItem } from "./SortableStopItem";
 import { StopRow } from "./StopRow";
 
 interface StopListPanelProps {
   delivered: Stop[];
   remaining: Stop[];
   nextId?: string;
+  legs: Map<string, RouteLeg>;
   onOpenStop: (id: string) => void;
+  onReorder: (remainingIds: string[]) => void;
 }
 
-export function StopListPanel({ delivered, remaining, nextId, onOpenStop }: StopListPanelProps) {
+const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
+
+export function StopListPanel(props: StopListPanelProps) {
+  const { delivered, remaining, nextId, legs, onOpenStop, onReorder } = props;
   const [showDelivered, setShowDelivered] = useState(false);
+  const sensors = useSensors(
+    // Unos píxeles de tolerancia para que un toque sobre el asa no cuente como arrastre.
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const ids = remaining.map((stop) => stop.id);
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from !== -1 && to !== -1) onReorder(arrayMove(ids, from, to));
+  };
+
+  const legText = (stop: Stop) => {
+    const leg = legs.get(stop.id);
+    return leg ? `${formatDistance(leg.distanceM)} · ${formatDuration(leg.durationS)}` : undefined;
+  };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 overflow-x-hidden">
       {delivered.length > 0 && (
         <section aria-label="Tiendas entregadas" className="flex flex-col gap-2">
           <button
@@ -33,18 +74,27 @@ export function StopListPanel({ delivered, remaining, nextId, onOpenStop }: Stop
             ))}
         </section>
       )}
-      <ol className="flex flex-col gap-2" aria-label="Tiendas por visitar">
-        {remaining.map((stop, index) => (
-          <li key={stop.id}>
-            <StopRow
-              stop={stop}
-              label={String(index + 1)}
-              highlighted={stop.id === nextId}
-              onOpen={() => onOpenStop(stop.id)}
-            />
-          </li>
-        ))}
-      </ol>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[verticalOnly]}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          <ol className="flex flex-col gap-2" aria-label="Tiendas por visitar">
+            {remaining.map((stop, index) => (
+              <SortableStopItem
+                key={stop.id}
+                stop={stop}
+                label={String(index + 1)}
+                legText={legText(stop)}
+                highlighted={stop.id === nextId}
+                onOpen={() => onOpenStop(stop.id)}
+              />
+            ))}
+          </ol>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
