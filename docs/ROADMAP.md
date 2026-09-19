@@ -14,7 +14,7 @@ Marca `[x]` al completar. No avances de fase sin cumplir su "Hecho cuando".
 
 ## Fase 1 — Tiendas
 - [x] `lib/geo`: haversine + parser de links (puro) con tests por formato
-- [ ] `POST /api/resolve-link` con lista blanca, redirecciones, timeout, fallbacks (HTML → Nominatim) + tests
+- [x] `POST /api/resolve-link` con lista blanca, redirecciones, timeout, fallbacks (HTML → Nominatim) + tests
 - [ ] Componente de mapa (Leaflet, solo cliente) con marcadores
 - [ ] Formulario "Agregar tienda": pegar, extraer URL/nombre, resolver
 - [ ] Confirmación con pin arrastrable + aviso de ubicación aproximada
