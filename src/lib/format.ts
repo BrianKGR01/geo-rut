@@ -1,0 +1,21 @@
+const decimal = new Intl.NumberFormat("es", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+
+export function formatDistance(meters: number): string {
+  if (meters < 950) return `${Math.max(10, Math.round(meters / 10) * 10)} m`;
+  return `${decimal.format(meters / 1000)} km`;
+}
+
+export function formatDuration(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}
+
+export function formatTime(iso: string | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(date);
+}
