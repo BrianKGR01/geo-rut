@@ -29,3 +29,11 @@ Formato: fecha — decisión — motivo.
 - **2026-09-19 — Nominatim: User-Agent `RutaTiendas/0.1 (…)` sin datos personales, cola en memoria a 1 req/1,1 s.** En serverless el límite es por instancia (best effort); con un solo usuario es suficiente. Política verificada en operations.osmfoundation.org/policies/nominatim.
 - **2026-09-19 — Cuerpo HTML acotado a 1,5 MB y timeout único de 8 s para toda la cadena de redirecciones.**
 - **2026-09-19 — Comprobado a mano:** las páginas de búsqueda de Google Maps (`?q=texto`) ya no traen coordenadas en el HTML inicial (se cargan por JS); en ese caso se usa Nominatim. Los links cortos compartidos desde la app suelen redirigir a `/maps/place/…!3d…!4d…`, que es el camino exacto.
+- **2026-09-19 — Centro por defecto del mapa: Lima (-12.0464, -77.0428).** Solo se ve cuando no hay tiendas ni ubicación; en cuanto hay una de las dos, el mapa se encuadra ahí.
+- **2026-09-19 — Marcadores con `L.divIcon` + CSS propio** en vez del ícono PNG por defecto de Leaflet (que exige configurar rutas de imágenes en el bundler) y permite numerarlos. El HTML del ícono solo lleva números/✓ generados por la app, nunca texto del usuario.
+- **2026-09-19 — Tres "escenas" de mapa (`RouteMap`, `ConfirmPinMap`, `PickerMap`) exportadas con `dynamic(..., { ssr: false })` desde `components/map/index.tsx`.** Todo Leaflet queda en un bundle diferido; los tipos compartidos viven en `src/types/map.ts` para que `features/` no importe Leaflet.
+- **2026-09-19 — Arrastrar o tocar el mapa en la confirmación cambia `coordsSource` a `manual`** (y quita el aviso de "aproximada": el usuario ya verificó el pin).
+- **2026-09-19 — El selector manual guarda directamente** ("Usar esta ubicación" = confirmar); no se pasa otra vez por la pantalla de confirmación.
+- **2026-09-19 — `NO_COORDS` abre el selector manual con aviso; el resto de errores se muestran en el formulario** con las opciones "reintentar" (mismo botón) y "Elegir en el mapa".
+- **2026-09-19 — Nombre vacío → `Tienda N`.** No se bloquea el alta por falta de nombre; se puede editar después.
+- **2026-09-19 — "Confirmación extra" al eliminar una entregada con ruta activa = segundo diálogo** explicando que se pierde el registro de la entrega.
