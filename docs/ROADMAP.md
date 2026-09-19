@@ -32,13 +32,13 @@ Marca `[x]` al completar. No avances de fase sin cumplir su "Hecho cuando".
 **Hecho cuando:** criterios 2, 3 y 8.
 
 ## Fase 3 — Ejecución
-- [ ] Reductor de estados de parada y de ruta + tests
-- [ ] "Iniciar ruta": vista de mapa grande + tarjeta de siguiente tienda
-- [ ] "Ir a la siguiente": deep link a Google Maps
-- [ ] Detección de llegada (visibilitychange + watchPosition, radio y precisión) + tests de la lógica
-- [ ] Tarjeta de entrega: observación + "Entregado"; botones manuales "Ya llegué" / deshacer
-- [ ] Reordenar/agregar durante ruta activa
-- [ ] Resumen final + "Nueva ruta"
+- [x] Reductor de estados de parada y de ruta + tests
+- [x] "Iniciar ruta": vista de mapa grande + tarjeta de siguiente tienda
+- [x] "Ir a la siguiente": deep link a Google Maps
+- [x] Detección de llegada (visibilitychange + watchPosition, radio y precisión) + tests de la lógica
+- [x] Tarjeta de entrega: observación + "Entregado"; botones manuales "Ya llegué" / deshacer
+- [x] Reordenar/agregar durante ruta activa
+- [x] Resumen final + "Nueva ruta"
 **Hecho cuando:** criterios 4, 5 y 6; flujo §5 completo a mano.
 
 ## Fase 4 — Pulido y despliegue

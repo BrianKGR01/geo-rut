@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+import { reduceDelivery, settleRoute, type DeliveryEvent } from "@/features/delivery/reducer";
 import { applyOptimizedOrder, reorderManually } from "@/features/route/orderOps";
 import {
   addStop as addStopOp,
@@ -27,6 +28,12 @@ export interface AppActions {
   /** Fija el punto de partida si todavía no hay uno (primera vez que se conoce la ubicación). */
   captureStartPoint: (origin: LatLng) => void;
   saveLegsCache: (cache: LegsCache | undefined) => void;
+  startRoute: (origin: LatLng | undefined) => boolean;
+  goToStop: (stopId: string) => boolean;
+  markArrived: (stopId: string) => boolean;
+  setDeliveryNote: (stopId: string, note: string) => boolean;
+  markDelivered: (stopId: string) => boolean;
+  undoStop: (stopId: string) => boolean;
   startNewRoute: () => void;
 }
 
@@ -70,27 +77,42 @@ export function createAppStore(storage: StateStorage = browserStorage()) {
 
   return create<AppState>()(
     persist(
-      (set) => ({
-        ...emptyAppData(),
-        addStop: (input) => {
-          const stop = createStop(input, newId(), new Date().toISOString());
-          set((state) => addStopOp(state, stop));
-          return stop.id;
-        },
-        updateStop: (id, patch) => set((state) => updateStopOp(state, id, patch)),
-        removeStop: (id) => set((state) => removeStopOp(state, id)),
-        reorderStops: (remainingIds) => set((state) => reorderManually(state, remainingIds)),
-        applyOptimization: (pendingIds, origin) =>
-          set((state) =>
-            applyOptimizedOrder(state, pendingIds, origin && toStartPoint(origin)),
-          ),
-        captureStartPoint: (origin) =>
-          set((state) =>
-            state.route.startPoint ? state : { route: { ...state.route, startPoint: toStartPoint(origin) } },
-          ),
-        saveLegsCache: (legsCache) => set((state) => ({ route: { ...state.route, legsCache } })),
-        startNewRoute: () => set(emptyAppData()),
-      }),
+      (set, get) => {
+        /** Toda transición de estado pasa por el reductor; si la rechaza, no cambia nada. */
+        const dispatch = (event: DeliveryEvent): boolean => {
+          const result = reduceDelivery(get(), event);
+          if (result.ok) set(result.data);
+          return result.ok;
+        };
+        const now = () => new Date().toISOString();
+        return {
+          ...emptyAppData(),
+          addStop: (input) => {
+            const stop = createStop(input, newId(), new Date().toISOString());
+            set((state) => settleRoute(addStopOp(state, stop), now()));
+            return stop.id;
+          },
+          updateStop: (id, patch) => set((state) => updateStopOp(state, id, patch)),
+          removeStop: (id) => set((state) => settleRoute(removeStopOp(state, id), now())),
+          reorderStops: (remainingIds) => set((state) => reorderManually(state, remainingIds)),
+          applyOptimization: (pendingIds, origin) =>
+            set((state) =>
+              applyOptimizedOrder(state, pendingIds, origin && toStartPoint(origin)),
+            ),
+          captureStartPoint: (origin) =>
+            set((state) =>
+              state.route.startPoint ? state : { route: { ...state.route, startPoint: toStartPoint(origin) } },
+            ),
+          saveLegsCache: (legsCache) => set((state) => ({ route: { ...state.route, legsCache } })),
+          startRoute: (origin) => dispatch({ type: "START_ROUTE", at: now(), startPoint: origin }),
+          goToStop: (stopId) => dispatch({ type: "GO_TO", stopId }),
+          markArrived: (stopId) => dispatch({ type: "ARRIVE", stopId, at: now() }),
+          setDeliveryNote: (stopId, note) => dispatch({ type: "SET_NOTE", stopId, note }),
+          markDelivered: (stopId) => dispatch({ type: "DELIVER", stopId, at: now() }),
+          undoStop: (stopId) => dispatch({ type: "UNDO", stopId, at: now() }),
+          startNewRoute: () => set(emptyAppData()),
+        };
+      },
       {
         name: STORAGE_KEY,
         version: SCHEMA_VERSION,

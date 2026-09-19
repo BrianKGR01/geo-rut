@@ -50,3 +50,14 @@ Formato: fecha — decisión — motivo.
 - **2026-09-19 — Optimizar solo reordena las `pending`;** la tienda `delivering` queda primera y no es arrastrable (se está entregando ahora).
 - **2026-09-19 — Recalculo con debounce de 600 ms y clave `origen|id@lat,lng…`** (5 decimales). Una ruta aproximada se reintenta al evento `online` o al volver a la app, no en bucle.
 - **2026-09-19 — Geolocalización en un store Zustand no persistido** (`geoStore`): varios componentes necesitan la posición (mapa, optimizar, llegada). El `watchPosition` se pausa con la página oculta y al cargar solo se reanuda solo si el permiso ya estaba concedido (Permissions API); si no, espera al gesto.
+
+## Fase 3
+
+- **2026-09-19 — Un único reductor puro (`features/delivery/reducer.ts`) para `StopStatus` y `RoutePlan.status`.** Transiciones válidas: `pending → delivering → delivered` y deshacer (`delivering|delivered → pending`). No existe `pending → delivered` directo: siempre se pasa por "Entregando" (ahí vive la observación). Las acciones del store devuelven `false` si el reductor rechaza el evento.
+- **2026-09-19 — Solo una tienda `delivering` a la vez.** Simplifica la tarjeta de entrega y evita estados ambiguos; "Entregar igual" queda deshabilitado mientras haya una entrega en curso.
+- **2026-09-19 — "Ya llegué" vs "Entregar igual":** ambos disparan la misma transición (`ARRIVE`). "Ya llegué" está en la tarjeta de la siguiente tienda; "Entregar igual (ya estoy aquí)" está en el detalle de cualquier tienda pendiente, para entregar fuera de orden sin pasar por Google Maps. Al llegar, esa tienda pasa al frente del orden.
+- **2026-09-19 — `settleRoute`:** al entregar/eliminar la última pendiente la ruta pasa a `finished`; si se deshace o se agrega una tienda con la ruta finalizada, vuelve a `active`; si se eliminan todas las tiendas, vuelve a `draft`.
+- **2026-09-19 — Detección de llegada con GPS impreciso (> 150 m):** se pregunta "¿Ya llegaste?" solo si la tienda cae dentro del margen de error (`distancia − precisión ≤ 120 m`); si está claramente lejos no se molesta. "Todavía no" silencia la pregunta hasta que se vuelve a la app.
+- **2026-09-19 — La observación se guarda en el store a cada tecla** (evento `SET_NOTE`), así recargar en mitad de una entrega no la pierde; se recorta al marcar "Entregado".
+- **2026-09-19 — "Ir a la siguiente" es un `<a target="_blank">`** al deep link documentado (`/maps/dir/?api=1&destination=lat,lng&travelmode=driving`), no `window.open`: en móvil los enlaces reales son los que mejor disparan la apertura de la app de Google Maps.
+- **2026-09-19 — La lista durante la ruta activa reutiliza `PlanScreen` dentro de una hoja:** mismo reorden, alta, edición y "Optimizar" que en planificación, sin duplicar UI.
