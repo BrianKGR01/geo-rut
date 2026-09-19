@@ -61,3 +61,13 @@ Formato: fecha — decisión — motivo.
 - **2026-09-19 — La observación se guarda en el store a cada tecla** (evento `SET_NOTE`), así recargar en mitad de una entrega no la pierde; se recorta al marcar "Entregado".
 - **2026-09-19 — "Ir a la siguiente" es un `<a target="_blank">`** al deep link documentado (`/maps/dir/?api=1&destination=lat,lng&travelmode=driving`), no `window.open`: en móvil los enlaces reales son los que mejor disparan la apertura de la app de Google Maps.
 - **2026-09-19 — La lista durante la ruta activa reutiliza `PlanScreen` dentro de una hoja:** mismo reorden, alta, edición y "Optimizar" que en planificación, sin duplicar UI.
+
+## Fase 4
+
+- **2026-09-19 — Íconos PNG generados con un script propio sin dependencias** (`scripts/generate-icons.cjs`: zlib + CRC, con antialias por supermuestreo). Evita sumar `sharp`/`canvas` solo para cinco imágenes. Se entregan 192, 512, 512 *maskable* (dibujo al 72 % para la zona segura), `apple-icon` 180 e `icon` 64.
+- **2026-09-19 — Manifest con `app/manifest.ts`** (convención de Next verificada en la doc incluida en `node_modules/next/dist/docs`). Sin service worker, como pide el PRD RF-7: la app ya cargada sobrevive a cortes de red gracias a localStorage y al respaldo de ruteo.
+- **2026-09-19 — Error boundary con `app/error.tsx` + `app/global-error.tsx`** usando la prop `retry` (estable desde Next 16.3; `reset` quedó como alternativa). El botón principal es "Recargar" y ninguno borra datos.
+- **2026-09-19 — Marcadores con área táctil de 44 px** aunque el círculo visible sea de 26–40 px (contenedor transparente), para cumplir el mínimo táctil sin tapar el mapa.
+- **2026-09-19 — Hojas (`Sheet`) reciben el foco al abrirse y cierran con Escape solo la que tiene el foco;** no se implementó una trampa de foco completa (uso táctil, una sola hoja visible a la vez).
+- **2026-09-19 — Contexto no seguro (http por IP) se reporta como ubicación "no disponible"** en vez de "permiso negado": el navegador niega el GPS sin preguntar y el mensaje del candado confundiría.
+- **2026-09-19 — Para probar en el celular por wifi se documenta `npm run build && npm start`:** el servidor de desarrollo de Next bloquea orígenes distintos de `localhost` (`allowedDevOrigins`) y no se quiso abrir esa puerta en la configuración del repo.

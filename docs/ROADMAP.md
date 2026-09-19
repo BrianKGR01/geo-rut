@@ -42,11 +42,13 @@ Marca `[x]` al completar. No avances de fase sin cumplir su "Hecho cuando".
 **Hecho cuando:** criterios 4, 5 y 6; flujo §5 completo a mano.
 
 ## Fase 4 — Pulido y despliegue
-- [ ] Manifest PWA + íconos
-- [ ] Error boundary, estados vacíos, mensajes de error revisados
-- [ ] Revisión de accesibilidad y tamaños táctiles
-- [ ] README (uso, despliegue en Vercel, privacidad, limitaciones)
+- [x] Manifest PWA + íconos
+- [x] Error boundary, estados vacíos, mensajes de error revisados
+- [x] Revisión de accesibilidad y tamaños táctiles
+- [x] README (uso, despliegue en Vercel, privacidad, limitaciones)
 **Hecho cuando:** `npm run build` limpio y checklist "Definición de terminado" de AGENTS.md.
+
+> **Nota de cierre (2026-09-19).** Hecho: `manifest.webmanifest` instalable (standalone, tema, íconos 192/512/maskable + apple-icon), error boundary de ruta y global con "Recargar" que no borra datos, estados vacíos, mensajes de error en español y accionables, foco visible, labels, `aria-live` en cambios de estado, hojas que reciben foco y cierran con Escape, todos los controles ≥ 44 px (medido en 360×740, incluidos los marcadores del mapa) y sin scroll horizontal, README completo. `npm run check` en verde (145 tests) y build de producción probado con `next start`. Pendiente (requiere el celular/Vercel, no se puede hacer desde aquí): instalar la PWA, GPS real, abrir la app de Google Maps y un link `maps.app.goo.gl` real. Probar: ver README → "Probarla desde el celular" y "Desplegar en Vercel".
 
 ## Fase 5 — Pedidos
 - [ ] CRUD de ítems (descripción + cantidad) por tienda

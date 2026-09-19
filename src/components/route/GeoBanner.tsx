@@ -22,7 +22,7 @@ export function GeoBanner() {
     return (
       <Banner tone="warn">
         <details>
-          <summary className="min-h-8 cursor-pointer py-1">Sin ubicación: todo sigue funcionando a mano.</summary>
+          <summary className="flex min-h-11 cursor-pointer items-center">Sin ubicación: todo sigue funcionando a mano.</summary>
           <p className="pb-1">
             La ruta parte de la primera tienda y la llegada se marca con “Ya llegué”. Para activarla, toca
             el candado junto a la dirección, permite “Ubicación” y recarga la página.

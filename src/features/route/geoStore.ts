@@ -26,7 +26,9 @@ export const useGeoStore = create<GeoState>((set, get) => ({
   status: "idle",
   start: () => {
     if (watchId !== undefined) return;
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+    // En http (que no sea localhost) el navegador niega el GPS sin preguntar: se avisa como "no disponible".
+    const insecure = typeof window !== "undefined" && window.isSecureContext === false;
+    if (insecure || typeof navigator === "undefined" || !("geolocation" in navigator)) {
       set({ status: "unavailable" });
       return;
     }

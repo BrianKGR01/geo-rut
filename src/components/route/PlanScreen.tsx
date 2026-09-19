@@ -32,7 +32,7 @@ export function PlanScreen({ calculating, onAddStop, onOpenStop, primaryAction }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <RouteMapSection
-        className={expanded ? "min-h-0 flex-1" : "h-[38%] shrink-0"}
+        className={expanded ? "min-h-0 flex-1" : "h-[32%] shrink-0"}
         onMarkerClick={onOpenStop}
       >
         <button

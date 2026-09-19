@@ -8,6 +8,8 @@ const SIZE: Record<MarkerVariant, number> = {
   delivered: 26,
 };
 
+const HIT_SIZE = 44;
+
 const cache = new Map<string, L.DivIcon>();
 
 /** Los íconos se reutilizan para no recrear capas de Leaflet en cada render. */
@@ -18,10 +20,11 @@ export function numberedIcon(label: string, variant: MarkerVariant): L.DivIcon {
   const size = SIZE[variant];
   const icon = L.divIcon({
     // `label` siempre es un número o "✓" generado por la app, nunca texto del usuario.
-    html: label,
-    className: `stop-marker stop-marker--${variant}`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    html: `<span class="stop-marker stop-marker--${variant}" style="width:${size}px;height:${size}px">${label}</span>`,
+    // El área táctil es de 44 px aunque el círculo visible sea más chico.
+    className: "stop-marker-hit",
+    iconSize: [HIT_SIZE, HIT_SIZE],
+    iconAnchor: [HIT_SIZE / 2, HIT_SIZE / 2],
   });
   cache.set(key, icon);
   return icon;

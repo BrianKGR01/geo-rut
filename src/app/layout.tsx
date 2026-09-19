@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   title: "RutaTiendas",
   description: "Planifica y ejecuta tu ruta de entregas a tiendas.",
   applicationName: "RutaTiendas",
+  appleWebApp: { capable: true, title: "RutaTiendas", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

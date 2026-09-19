@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 interface SheetProps {
   title: string;
@@ -15,12 +15,28 @@ interface SheetProps {
 /** Hoja a pantalla completa: en un celular es más clara que un modal flotante. */
 export function Sheet({ title, onClose, closeLabel = "Cerrar", children, footer, flush }: SheetProps) {
   const titleId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Al abrir, el foco entra a la hoja (lectores de pantalla y teclado).
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      className="app-shell fixed inset-0 z-40 flex flex-col bg-paper"
+      ref={containerRef}
+      tabIndex={-1}
+      // Escape cierra solo la hoja que tiene el foco (puede haber varias apiladas).
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+      className="app-shell fixed inset-0 z-40 flex flex-col bg-paper outline-none"
     >
       <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b-2 border-ink pl-4 pr-1">
         <h2 id={titleId} className="truncate text-lg font-extrabold">

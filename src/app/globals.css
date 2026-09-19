@@ -57,7 +57,12 @@ body {
 }
 
 /* Marcadores del mapa (L.divIcon). El selector doble le gana al display:block de leaflet.css. */
-.leaflet-marker-icon.stop-marker {
+.leaflet-marker-icon.stop-marker-hit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stop-marker {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -69,14 +74,14 @@ body {
   font-size: 15px;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
 }
-.leaflet-marker-icon.stop-marker--next {
+.stop-marker--next {
   background: var(--color-brand);
   font-size: 17px;
 }
-.leaflet-marker-icon.stop-marker--delivering {
+.stop-marker--delivering {
   background: var(--color-warn);
 }
-.leaflet-marker-icon.stop-marker--delivered {
+.stop-marker--delivered {
   background: var(--color-ok);
   font-size: 13px;
   opacity: 0.85;
