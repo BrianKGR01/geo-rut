@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* Tema claro de alto contraste: pensado para leerse al sol. */
+@theme {
+  --color-ink: #0b0f14;
+  --color-ink-soft: #3b4652;
+  --color-paper: #ffffff;
+  --color-surface: #f1f4f7;
+  --color-line: #c3ccd6;
+  --color-brand: #0b4fd6;
+  --color-brand-strong: #083a9e;
+  --color-ok: #0a7a3d;
+  --color-ok-soft: #dcf5e6;
+  --color-warn: #8a4b00;
+  --color-warn-soft: #ffedc7;
+  --color-danger: #b3141f;
+  --color-danger-soft: #fde3e5;
+  --color-info-soft: #dce8ff;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.app-shell {
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Leaflet trae z-index altos; se aíslan para que las hojas y diálogos queden encima. */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+  font-family: inherit;
+}
