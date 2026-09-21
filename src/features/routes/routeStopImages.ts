@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { newId } from "@/lib/storage/id";
+import { isPhotoLimitError } from "@/lib/supabase/photoLimitError";
 import type { SupabaseDb } from "@/lib/supabase/types";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
+
+export { isPhotoLimitError };
 
 export type UploadedRole = "admin" | "chofer";
 
@@ -67,15 +70,8 @@ export interface NewRouteStopImageInput {
   uploadedRole: UploadedRole;
 }
 
-/** `23514` = `check_violation`: el trigger de la base ya corta la 4ta foto, acá solo se detecta. */
-const PHOTO_LIMIT_ERROR_CODE = "23514";
-
 /** Mensaje único (no técnico) para el tope de fotos; exportado para que la UI lo reconozca sin adivinar. */
 export const PHOTO_LIMIT_MESSAGE = "Esta tienda ya tiene 3 fotos. Borra una para poder subir otra.";
-
-export function isPhotoLimitError(error: { code?: string | null } | null | undefined): boolean {
-  return error?.code === PHOTO_LIMIT_ERROR_CODE;
-}
 
 /**
  * Registra la fila después de subir el archivo a Storage (esa subida la hace la pantalla que

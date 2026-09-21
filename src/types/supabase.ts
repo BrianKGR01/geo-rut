@@ -325,6 +325,44 @@ export type Database = {
           },
         ]
       }
+      store_images: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          id: string
+          storage_path: string
+          store_id: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          storage_path: string
+          store_id: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          storage_path?: string
+          store_id?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_images_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stores: {
         Row: {
           coords_source: string

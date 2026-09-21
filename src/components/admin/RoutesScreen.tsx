@@ -62,6 +62,9 @@ export function RoutesScreen({ routes: initialRoutes, drivers, currentUserId }: 
         <Link href="/admin/admins" className={buttonClass("secondary")}>
           Administradores
         </Link>
+        <Link href="/admin/stores" className={buttonClass("secondary")}>
+          Tiendas
+        </Link>
       </nav>
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-display text-2xl font-bold uppercase tracking-wide text-ink">Rutas</h2>
