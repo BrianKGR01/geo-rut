@@ -1,4 +1,10 @@
 const decimal = new Intl.NumberFormat("es", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const monto = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 0 });
+
+/** Bs, sin decimales: el monto del pedido siempre es múltiplo de 5 (`pedidoMontoInputSchema`). */
+export function formatMonto(value: number): string {
+  return `Bs ${monto.format(value)}`;
+}
 
 export function formatDistance(meters: number): string {
   if (meters < 950) return `${Math.max(10, Math.round(meters / 10) * 10)} m`;

@@ -334,3 +334,80 @@ etapa fue enteramente de pantallas sobre lo ya construido.
   auditoría"; el dato ya queda guardado (`deleted_at`/`deleted_by` en las nueve tablas), pero la
   pantalla para revisarlo sigue fuera de alcance de v2 por decisión ya tomada (`docs/PLAN_V2.md`
   §10) — no se reabrió esa decisión sin que el usuario lo pidiera.
+
+## Fase 4 — Pedido por tienda (monto, partidas y fotos con autoría)
+
+Pantallas y capa de datos nuevas sobre lo que ya existía de la Fase 3 (`features/routes/{routeStops,
+routeStopItems,routeStopImages}.ts` ya tenían el CRUD completo, incluido `pedidoMontoInputSchema` y
+el manejo del tope de fotos vía `isPhotoLimitError`); esta etapa fue sobre todo de pantallas más
+algunas funciones nuevas de subida/URLs firmadas.
+
+- **2026-09-21 — Editar el pedido se abre tocando la fila de la tienda (patrón de `StopRow` en v1:
+  todo el contenido es un botón), en vez de sumar un tercer ícono a `RouteStopsEditor`.** La fila ya
+  tiene dos botones de 48 px (quitar, arrastrar) más la placa numerada; un tercer ícono fijo dejaba
+  muy poco ancho para el nombre a 360 px. Tocar la fila abre `OrderSheet`; la fila además muestra un
+  resumen de una línea (monto/cantidad de partidas/fotos, o "Sin pedido cargado — toca para
+  agregar") para que el admin no tenga que abrir cada tienda para saber si ya tiene pedido cargado.
+- **`OrderSheet` (`src/components/admin/OrderSheet.tsx`) es un orquestador delgado** que arma tres
+  piezas independientes en `src/components/admin/order/` (`OrderMontoField`, `OrderItemsEditor` +
+  `OrderItemRow`, `OrderImagesPanel`), cada una con su propio estado de `busy`/`error` y guardado
+  inmediato (sin un botón "Guardar" único para todo el pedido) — coherente con que el pedido ya es
+  editable en cualquier momento (`docs/PLAN_V2.md` §4, nota "Pedido opcional y editable"): no hace
+  falta una transacción de UI que junte los tres cambios.
+- **`formatMonto` (`src/lib/format.ts`) usa `Intl.NumberFormat("es-BO", …)`, no el locale genérico
+  `"es"` que ya usaban `formatDistance`/`formatDateTime`.** Verificado a mano que `"es-BO"` agrupa
+  los miles con punto (`1.200`) mientras que `"es"` sin país no agrupa; como el monto es en
+  bolivianos, conviene el separador que se usa en Bolivia.
+- **Partidas (`OrderItemsEditor`/`OrderItemRow`): descripción y cantidad se editan in situ (`input`
+  con `onBlur` que guarda), sin un modo "editar" separado ni un botón de guardar por fila.** Menos
+  toques en el celular que un flujo "tocar para editar → guardar → volver a la lista"; alta nueva
+  queda en un formulario aparte abajo de la lista (con su propio botón "Agregar partida") porque ahí
+  sí hace falta un paso explícito de confirmación (evita partidas vacías por un blur accidental).
+- **La suma de cantidades se muestra junto al título ("Partidas · N en total") solo si algún ítem
+  tiene cantidad cargada, nunca se compara contra `pedido_monto`.** Pedido explícito del usuario:
+  "son independientes... no es algo complejo para ajustar más adelante" — la suma es solo
+  información de apoyo, no una validación.
+- **Fotos: se agregaron `buildRouteStopImagePath`, `uploadRouteStopImage` y `getRouteStopImageUrls`
+  a `features/routes/routeStopImages.ts` (no un archivo nuevo)**, junto al resto del CRUD de esa
+  tabla que ya existía desde la Fase 3. `buildRouteStopImagePath` (pura, testeada) arma
+  `routeId/routeStopId/<id-único><extensión>` con `newId()` de `lib/storage/id.ts` (el mismo
+  generador de IDs que ya usa v1, reusado en vez de duplicarlo) — conserva la extensión para que el
+  navegador/Storage infieran bien el tipo, pero el nombre en sí no importa (la fila de
+  `route_stop_images` no guarda el nombre original).
+- **`uploadRouteStopImage` sube el archivo primero y recién después llama a `insertRouteStopImage`
+  (ya existente); si el `insert` falla (tope de 3 u otro error) borra el objeto recién subido del
+  bucket antes de relanzar el error.** Sin este orden, una carrera entre dos subidas simultáneas
+  podría dejar un archivo huérfano en Storage por cada intento que el trigger de tope-3 rechaza; el
+  admin igual ve el mensaje claro (`PHOTO_LIMIT_MESSAGE`, extraído a una constante exportada desde
+  `routeStopImages.ts` en vez del `throw new Error("...")` inline que ya existía, para que la UI
+  pueda distinguirlo de un error genérico sin adivinar el texto).
+- **Vista previa de fotos con `storage.createSignedUrls` (10 minutos), no `getPublicUrl`.** El
+  bucket `pedidos` es privado (`docs/PLAN_V2.md` §5/§7); verificado en el código fuente instalado de
+  `@supabase/storage-js` (`node_modules/@supabase/storage-js/src/packages/StorageFileApi.ts`) el
+  signature exacto de `createSignedUrls(paths, expiresIn, options?)` y su forma de respuesta
+  (`{ path, signedUrl, error }[]`) antes de usarlo. Se pide en lote (todas las fotos de la tienda en
+  una sola llamada) en vez de una `createSignedUrl` por foto.
+- **No se agregó una pantalla/botón para borrar fotos.** El pedido de esta etapa fue explícito:
+  "subida de archivo... vista previa... con quién la subió"; no pidió borrar. `removeRouteStopImage`
+  (función pura de acceso a datos, ya escrita en la Fase 3) queda sin usar desde la UI todavía, lista
+  para cuando se arme una pantalla de borrado/papelera (fuera de alcance de v2 por `docs/PLAN_V2.md`
+  §10, salvo que el usuario lo pida antes).
+- **No se tocó `src/components/route/DeliveryCard.tsx` a propósito**, tal como pidió la tarea: esa
+  tarjeta todavía lee `Stop`/`RoutePlan` de `localStorage` vía Zustand (v1) y se migra a Supabase
+  recién en la Fase 5 (`docs/ROADMAP.md`); tocar el pedido ahí antes de esa migración implicaría
+  adivinar la forma final de sus props. Lo que va a necesitar, para que la Fase 5 la enganche sin
+  re-trabajo: cuando `stop.status === 'delivering'` (mismo momento en que hoy aparece el campo de
+  observación, `docs/PLAN_V2.md` §4 nota "fotos... recién al llegar"), la tarjeta va a requerir (a)
+  `pedidoMonto: number | null` (formatearlo con `formatMonto`, ya listo en `lib/format.ts`), (b) la
+  lista de partidas (`RouteStopItem[]`, de `features/routes/routeStopItems.ts`, ya con
+  `description`/`quantity`), solo si `items.length > 0`, (c) las fotos ya subidas
+  (`RouteStopImage[]`, de `features/routes/routeStopImages.ts`) con su rótulo según
+  `uploadedRole` — reusar `UPLOADED_BY_LABEL` de `components/admin/order/OrderImagesPanel.tsx` o
+  extraerlo a un lugar compartido si el chofer también lo necesita — y sus URLs firmadas
+  (`getRouteStopImageUrls`, ya generalizada para cualquier rol, no solo admin), y (d) para que el
+  chofer pueda agregar una foto desde ahí (Fase 5, ítem "el chofer puede agregar fotos... el botón
+  se deshabilita al llegar a 3"): `uploadRouteStopImage` ya acepta `uploadedRole: 'chofer'`, así que
+  la Fase 5 puede llamarlo tal cual con el `auth.uid()` de la sesión anónima, sin tocar
+  `routeStopImages.ts`; solo falta conectar el `routeId`/`routeStopId` de la ejecución del chofer
+  (hoy en el store Zustand, mañana en la tabla `routes`/`route_stops` vía RLS de chofer) y respetar
+  `ROUTE_STOP_IMAGES_LIMIT` (ya exportado) para deshabilitar el botón al llegar a 3.

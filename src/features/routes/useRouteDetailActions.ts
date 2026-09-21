@@ -105,6 +105,17 @@ export function useRouteDetailActions(initialRoute: RouteWithStops, currentUserI
     }
   };
 
+  /**
+   * Aplica un cambio ya confirmado en Supabase (monto/partidas/fotos del pedido) al estado local,
+   * sin volver a pedir toda la ruta: cada mutación de `OrderSheet` ya devuelve el dato fresco.
+   */
+  const updateStopDetail = (stopId: string, patch: Partial<RouteStopDetail>) => {
+    setRoute((prev) => ({
+      ...prev,
+      stops: prev.stops.map((stop) => (stop.id === stopId ? { ...stop, ...patch } : stop)),
+    }));
+  };
+
   return {
     route,
     busy,
@@ -116,5 +127,6 @@ export function useRouteDetailActions(initialRoute: RouteWithStops, currentUserI
     addStops,
     removeStop,
     reorder,
+    updateStopDetail,
   };
 }

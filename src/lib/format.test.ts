@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatDistance, formatDuration, formatTime } from "./format";
+import { formatDateTime, formatDistance, formatDuration, formatMonto, formatTime } from "./format";
 
 describe("formato", () => {
   it("distancias cortas en metros y largas en km con coma decimal", () => {
@@ -23,5 +23,11 @@ describe("formato", () => {
   it("fecha y hora inválida o ausente muestra raya", () => {
     expect(formatDateTime(undefined)).toBe("—");
     expect(formatDateTime("no es fecha")).toBe("—");
+  });
+
+  it("monto con prefijo Bs y separador de miles boliviano", () => {
+    expect(formatMonto(5)).toBe("Bs 5");
+    expect(formatMonto(120)).toBe("Bs 120");
+    expect(formatMonto(1200)).toBe("Bs 1.200");
   });
 });

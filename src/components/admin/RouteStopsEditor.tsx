@@ -14,6 +14,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { Icon } from "@/components/ui/Icon";
 import type { RouteStopDetail } from "@/features/routes/api";
+import { formatMonto } from "@/lib/format";
 
 const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
 
@@ -21,10 +22,11 @@ interface RouteStopsEditorProps {
   stops: RouteStopDetail[];
   onReorder: (orderedIds: string[]) => void;
   onRemove: (stop: RouteStopDetail) => void;
+  onEditOrder: (stop: RouteStopDetail) => void;
 }
 
 /** Lista reordenable de las tiendas de una ruta (dnd-kit, mismo patrón que `StopListPanel` de v1). */
-export function RouteStopsEditor({ stops, onReorder, onRemove }: RouteStopsEditorProps) {
+export function RouteStopsEditor({ stops, onReorder, onRemove, onEditOrder }: RouteStopsEditorProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -47,7 +49,13 @@ export function RouteStopsEditor({ stops, onReorder, onRemove }: RouteStopsEdito
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ol className="flex flex-col gap-2" aria-label="Tiendas de la ruta">
           {stops.map((stop, index) => (
-            <SortableRouteStopRow key={stop.id} stop={stop} label={index + 1} onRemove={() => onRemove(stop)} />
+            <SortableRouteStopRow
+              key={stop.id}
+              stop={stop}
+              label={index + 1}
+              onRemove={() => onRemove(stop)}
+              onEditOrder={() => onEditOrder(stop)}
+            />
           ))}
         </ol>
       </SortableContext>
@@ -59,9 +67,19 @@ interface SortableRouteStopRowProps {
   stop: RouteStopDetail;
   label: number;
   onRemove: () => void;
+  onEditOrder: () => void;
 }
 
-function SortableRouteStopRow({ stop, label, onRemove }: SortableRouteStopRowProps) {
+/** Resumen corto del pedido para la fila: monto, cantidad de partidas y de fotos, o "sin pedido". */
+function orderSummary(stop: RouteStopDetail): string {
+  const parts: string[] = [];
+  if (stop.pedidoMonto !== null) parts.push(formatMonto(stop.pedidoMonto));
+  if (stop.items.length > 0) parts.push(`${stop.items.length} partida${stop.items.length === 1 ? "" : "s"}`);
+  if (stop.images.length > 0) parts.push(`${stop.images.length} foto${stop.images.length === 1 ? "" : "s"}`);
+  return parts.length > 0 ? parts.join(" · ") : "Sin pedido cargado — toca para agregar";
+}
+
+function SortableRouteStopRow({ stop, label, onRemove, onEditOrder }: SortableRouteStopRowProps) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: stop.id,
   });
@@ -73,12 +91,20 @@ function SortableRouteStopRow({ stop, label, onRemove }: SortableRouteStopRowPro
       className={isDragging ? "relative z-10 opacity-95 drop-shadow-xl" : undefined}
     >
       <div className="flex min-h-[60px] items-stretch rounded-xl border-2 border-line bg-card">
-        <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2">
+        <button
+          type="button"
+          onClick={onEditOrder}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-l-xl px-3 py-2 text-left active:bg-raised"
+          aria-label={`${stop.name}. Editar pedido`}
+        >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-plate font-display text-xl font-bold text-white">
             {label}
           </span>
-          <span className="min-w-0 flex-1 truncate text-base font-bold text-ink">{stop.name}</span>
-        </div>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-base font-bold text-ink">{stop.name}</span>
+            <span className="block truncate text-sm text-soft">{orderSummary(stop)}</span>
+          </span>
+        </button>
         <button
           type="button"
           onClick={onRemove}

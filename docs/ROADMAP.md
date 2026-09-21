@@ -78,11 +78,38 @@ de `dev` a `main`.
 > reordenar/quitar tiendas desde el detalle.
 
 ## Fase 4 — Pedido por tienda (monto, partidas y fotos con autoría)
-- [ ] Campo de monto total por tienda dentro de una ruta (opcional, editable en cualquier momento), en bolivianos (helper `formatMonto`/"Bs" en `lib/format.ts`), múltiplo de 5, validado con Zod
-- [ ] CRUD de partidas del pedido (`route_stop_items`: descripción + cantidad opcional), opcional e independiente del total
-- [ ] Subida de fotos (hasta 3) por tienda al bucket `pedidos` desde la pantalla de administrador, con vista previa antes de guardar
-- [ ] Mostrar el pedido (monto, partidas si existen, fotos con "Subida por…") en la tarjeta de entrega del chofer — recién al llegar (`delivering`), no antes (RF-5 del PRD, sin cambios en el resto de esa pantalla)
+- [x] Campo de monto total por tienda dentro de una ruta (opcional, editable en cualquier momento), en bolivianos (helper `formatMonto`/"Bs" en `lib/format.ts`), múltiplo de 5, validado con Zod
+- [x] CRUD de partidas del pedido (`route_stop_items`: descripción + cantidad opcional), opcional e independiente del total
+- [x] Subida de fotos (hasta 3) por tienda al bucket `pedidos` desde la pantalla de administrador, con vista previa antes de guardar
+- [ ] Mostrar el pedido (monto, partidas si existen, fotos con "Subida por…") en la tarjeta de entrega del chofer — recién al llegar (`delivering`), no antes (RF-5 del PRD, sin cambios en el resto de esa pantalla) — pasa a la Fase 5, ver nota de cierre
 **Hecho cuando:** cada tienda de una ruta puede tener un monto y/o partidas y hasta 3 fotos, cargables por el admin en cualquier momento, y se ven al llegar a la tienda (no antes) con quién subió cada foto.
+
+> **Nota de cierre (2026-09-21).** Hecho: en el detalle de ruta (`src/app/admin/(dashboard)/routes/[id]/page.tsx`),
+> cada fila de tienda ahora es tocable y abre una hoja "Editar pedido"
+> (`src/components/admin/OrderSheet.tsx`, orquesta tres piezas en `src/components/admin/order/`):
+> monto total (`OrderMontoField`, Bs, múltiplo de 5, Zod), partidas (`OrderItemsEditor` +
+> `OrderItemRow`, agregar/editar in situ/quitar con borrado lógico) y fotos
+> (`OrderImagesPanel`, hasta 3, con quién subió cada una). La fila de la lista muestra un resumen
+> corto (monto/cantidad de partidas/fotos, o "Sin pedido cargado") para no tener que abrir la hoja
+> para saber si ya se cargó algo. `formatMonto` nuevo en `lib/format.ts` (con test). Subida de fotos:
+> `uploadRouteStopImage`/`buildRouteStopImagePath`/`getRouteStopImageUrls` nuevos en
+> `features/routes/routeStopImages.ts` (con tests del armado de la ruta); el bucket es privado, así
+> que la vista previa usa `createSignedUrls` (10 min); si el `insert` de la fila falla (tope de 3,
+> ya cortado por el trigger de la Fase 1) se borra el archivo recién subido para no dejar un huérfano
+> en Storage, y se muestra `PHOTO_LIMIT_MESSAGE` (mensaje en español, no el error técnico). No se
+> construyó una pantalla de borrar fotos: el pedido solo pidió "subida + vista previa con quién
+> subió"; `removeRouteStopImage` (de la Fase 3) sigue disponible para cuando se arme una pantalla de
+> borrado/papelera. El último ítem (mostrar el pedido en la tarjeta de entrega del chofer) se deja
+> intacto a propósito — no se tocó `components/route/DeliveryCard.tsx` — porque esa tarjeta todavía
+> lee de `localStorage`/Zustand (v1) y recién se migra a Supabase en la Fase 5; mostrar el pedido ahí
+> sin esa migración sería adivinar la forma final de los props. Quedó documentado en
+> `docs/DECISIONS.md` ("Fase 4") qué va a necesitar esa tarjeta para engancharlo sin re-trabajo.
+> `npm run check` en verde. Cómo probarlo a mano: `npm run dev`, entrar a una ruta desde `/admin`,
+> tocar una tienda de la lista, cargar un monto (probar uno que no sea múltiplo de 5 para ver el
+> error), agregar 2-3 partidas (editar descripción/cantidad tocando el campo y saliendo de él,
+> quitar una), subir 3 fotos seguidas y confirmar que la 4ta muestra el mensaje de tope; cerrar y
+> volver a abrir la hoja para confirmar que todo quedó guardado, y que la fila de la lista muestra
+> el resumen actualizado.
 
 ## Fase 5 — Acceso del chofer por código
 - [ ] Sesión anónima (`supabase.auth.signInAnonymously()`) + pantalla "Ingresar código de ruta"

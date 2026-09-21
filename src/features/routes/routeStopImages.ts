@@ -1,8 +1,14 @@
 import { z } from "zod";
+import { newId } from "@/lib/storage/id";
 import type { SupabaseDb } from "@/lib/supabase/types";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
 
 export type UploadedRole = "admin" | "chofer";
+
+/** Tope de fotos activas por tienda (ya reforzado por un trigger en la base, ver `isPhotoLimitError`). */
+export const ROUTE_STOP_IMAGES_LIMIT = 3;
+
+const STORAGE_BUCKET = "pedidos";
 
 /** Foto del pedido, con quién la subió (importante: el chofer solo inserta, nunca borra). */
 export interface RouteStopImage {
@@ -58,6 +64,9 @@ export interface NewRouteStopImageInput {
 /** `23514` = `check_violation`: el trigger de la base ya corta la 4ta foto, acá solo se detecta. */
 const PHOTO_LIMIT_ERROR_CODE = "23514";
 
+/** Mensaje único (no técnico) para el tope de fotos; exportado para que la UI lo reconozca sin adivinar. */
+export const PHOTO_LIMIT_MESSAGE = "Esta tienda ya tiene 3 fotos. Borra una para poder subir otra.";
+
 export function isPhotoLimitError(error: { code?: string | null } | null | undefined): boolean {
   return error?.code === PHOTO_LIMIT_ERROR_CODE;
 }
@@ -83,7 +92,7 @@ export async function insertRouteStopImage(
     .select(ROUTE_STOP_IMAGE_COLUMNS)
     .single();
   if (error) {
-    if (isPhotoLimitError(error)) throw new Error("Esta tienda ya tiene 3 fotos. Borra una para poder subir otra.");
+    if (isPhotoLimitError(error)) throw new Error(PHOTO_LIMIT_MESSAGE);
     throw error;
   }
   return mapRouteStopImageRow(routeStopImageRowSchema.parse(data));
@@ -94,4 +103,64 @@ export async function removeRouteStopImage(supabase: SupabaseDb, id: string, del
   const update: TablesUpdate<"route_stop_images"> = { deleted_at: new Date().toISOString(), deleted_by: deletedBy };
   const { error } = await supabase.from("route_stop_images").update(update).eq("id", id);
   if (error) throw error;
+}
+
+/** Nombre único que conserva la extensión original (para que el navegador reconozca el tipo). */
+function uniqueFileName(originalName: string): string {
+  const dot = originalName.lastIndexOf(".");
+  const ext = dot > 0 ? originalName.slice(dot) : "";
+  return `${newId()}${ext}`;
+}
+
+/** Ruta dentro del bucket `pedidos`: las políticas RLS de Storage leen `routeId` del primer tramo. */
+export function buildRouteStopImagePath(routeId: string, routeStopId: string, fileName: string): string {
+  return `${routeId}/${routeStopId}/${uniqueFileName(fileName)}`;
+}
+
+export interface UploadRouteStopImageInput {
+  routeId: string;
+  routeStopId: string;
+  file: File;
+  uploadedBy: string;
+  uploadedRole: UploadedRole;
+}
+
+/**
+ * Sube el archivo al bucket `pedidos` y registra la fila (en ese orden: la fila referencia una
+ * ruta que ya existe). Si el `insert` falla (típicamente el tope de 3, `PHOTO_LIMIT_MESSAGE`),
+ * borra el archivo recién subido para no dejar un objeto huérfano en Storage.
+ */
+export async function uploadRouteStopImage(
+  supabase: SupabaseDb,
+  input: UploadRouteStopImageInput,
+): Promise<RouteStopImage> {
+  const path = buildRouteStopImagePath(input.routeId, input.routeStopId, input.file.name);
+  const { error: uploadError } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(path, input.file, { contentType: input.file.type || undefined });
+  if (uploadError) throw new Error("No se pudo subir la foto. Intenta de nuevo.");
+
+  try {
+    return await insertRouteStopImage(supabase, {
+      routeStopId: input.routeStopId,
+      storagePath: path,
+      uploadedBy: input.uploadedBy,
+      uploadedRole: input.uploadedRole,
+    });
+  } catch (error) {
+    await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+    throw error;
+  }
+}
+
+/** URLs firmadas para mostrar las fotos (bucket privado, sin acceso público); 10 minutos de validez. */
+export async function getRouteStopImageUrls(supabase: SupabaseDb, paths: string[]): Promise<Record<string, string>> {
+  if (paths.length === 0) return {};
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrls(paths, 600);
+  if (error) throw error;
+  const urls: Record<string, string> = {};
+  for (const entry of data) {
+    if (entry.path && entry.signedUrl) urls[entry.path] = entry.signedUrl;
+  }
+  return urls;
 }

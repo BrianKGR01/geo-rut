@@ -9,6 +9,7 @@ import { formatRouteLabel, type RouteStopDetail, type RouteWithStops } from "@/f
 import { useRouteDetailActions } from "@/features/routes/useRouteDetailActions";
 import type { StoreRecord } from "@/features/stores/api";
 import { AdminSectionHeader } from "./AdminSectionHeader";
+import { OrderSheet } from "./OrderSheet";
 import { RouteInfoCard } from "./RouteInfoCard";
 import { RouteStopsEditor } from "./RouteStopsEditor";
 import { StorePickerSheet } from "./StorePickerSheet";
@@ -21,14 +22,16 @@ interface RouteDetailScreenProps {
 }
 
 export function RouteDetailScreen({ route: initialRoute, drivers, catalogStores, currentUserId }: RouteDetailScreenProps) {
-  const { route, busy, error, activate, finish, assignDriver, cancel, addStops, removeStop, reorder } =
+  const { route, busy, error, activate, finish, assignDriver, cancel, addStops, removeStop, reorder, updateStopDetail } =
     useRouteDetailActions(initialRoute, currentUserId);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [toRemoveStop, setToRemoveStop] = useState<RouteStopDetail | null>(null);
   const [toCancel, setToCancel] = useState(false);
+  const [editingStopId, setEditingStopId] = useState<string | null>(null);
 
   const driverName = drivers.find((driver) => driver.id === route.driverId)?.name;
   const excludeStoreIds = new Set(route.stops.map((stop) => stop.storeId).filter((id): id is string => Boolean(id)));
+  const editingStop = route.stops.find((stop) => stop.id === editingStopId) ?? null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -54,8 +57,22 @@ export function RouteDetailScreen({ route: initialRoute, drivers, catalogStores,
             Agregar
           </Button>
         </div>
-        <RouteStopsEditor stops={route.stops} onReorder={reorder} onRemove={setToRemoveStop} />
+        <RouteStopsEditor
+          stops={route.stops}
+          onReorder={reorder}
+          onRemove={setToRemoveStop}
+          onEditOrder={(stop) => setEditingStopId(stop.id)}
+        />
       </section>
+      {editingStop && (
+        <OrderSheet
+          routeId={route.id}
+          stop={editingStop}
+          currentUserId={currentUserId}
+          onClose={() => setEditingStopId(null)}
+          onUpdated={updateStopDetail}
+        />
+      )}
       {pickerOpen && (
         <StorePickerSheet
           catalogStores={catalogStores}
