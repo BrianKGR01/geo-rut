@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
+import { useHasMounted } from "@/components/ui/useHasMounted";
 import { createClient } from "@/lib/supabase/client";
 
 const credentialsSchema = z.object({
@@ -30,10 +31,21 @@ function loginErrorMessage(message: string): string {
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const mounted = useHasMounted();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+
+  // Llega acá si /auth/confirm no pudo canjear un enlace de invitación/recuperación (vencido o
+  // ya usado). Se lee de window (recién en el cliente, useHasMounted evita el desajuste de
+  // hidratación) en vez de useSearchParams, para no forzar un límite de Suspense en una página
+  // que por lo demás es estática.
+  const invalidLinkMessage =
+    mounted && new URLSearchParams(window.location.search).get("enlace") === "invalido"
+      ? "Ese enlace ya venció o ya se usó. Pide que te inviten de nuevo, o ingresa si ya tienes contraseña."
+      : undefined;
+  const banner = error ?? invalidLinkMessage;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -100,9 +112,9 @@ export default function AdminLoginPage() {
             onChange={setPassword}
             disabled={busy}
           />
-          {error && (
+          {banner && (
             <Banner tone="danger" role="alert">
-              {error}
+              {banner}
             </Banner>
           )}
           <Button type="submit" big disabled={busy}>

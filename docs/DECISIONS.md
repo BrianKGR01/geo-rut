@@ -789,3 +789,31 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
   un enlace de texto chico debajo del botón "Ingresar" ("¿Eres administrador? Ingresa con tu
   cuenta"), sin un segundo botón grande que compita con la acción primaria del chofer (que es quien
   va a entrar por acá casi siempre).
+
+- **2026-09-21 — Faltaba la pantalla para que un administrador invitado ponga su contraseña por
+  primera vez; se agrega `src/app/auth/confirm/route.ts` + `src/app/admin/accept-invite/page.tsx`.**
+  El usuario probó el preview en Vercel y `/admin/login` daba "Internal Server Error" — la causa
+  real era que el proyecto de Vercel no tenía NINGUNA variable de entorno cargada (`.env.local`
+  nunca se commitea, a propósito; nadie las había puesto en Vercel todavía). Se cargaron las
+  cuatro (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` como `plain`,
+  `SUPABASE_SECRET_KEY` como `sensitive`, `SUPABASE_JWKS_URL`) en los tres entornos
+  (production/preview/development) vía el MCP de Vercel, y se disparó un redeploy del último
+  commit de `dev` para que las tome. Al revisar el flujo completo apareció un segundo problema,
+  más de fondo: el login (`/admin/login`) solo sirve para quien YA tiene contraseña — nunca se
+  construyó una pantalla para que un administrador recién invitado la ponga por primera vez. Como
+  esta app usa sesión en cookies (`@supabase/ssr`), no alcanza con el enlace que arma Supabase por
+  su cuenta (apunta a un dominio que Supabase resuelve del lado de él); hace falta un endpoint
+  propio que canjee el `token_hash` del enlace por una sesión (patrón documentado por Supabase para
+  apps SSR, verificado contra la documentación vigente, no de memoria) y recién ahí una pantalla
+  para poner la contraseña. `/auth/confirm` no pasa por el proxy de `/admin/:path*` (queda público,
+  tiene que estarlo: es lo que crea la sesión); `/admin/accept-invite` sí pasa por ahí, así que sin
+  sesión rebota a `/admin/login` con un aviso en vez de romperse. Probado a mano el camino negativo
+  completo (token inválido → `/auth/confirm` → `/admin/login?enlace=invalido` → aviso visible); el
+  camino positivo (enlace real) lo prueba el usuario — no se toca ninguna contraseña real desde acá
+  (ver regla de manejo de credenciales).
+- **2026-09-21 — No se edita la plantilla de email de Supabase (paso de dashboard) para este
+  arreglo.** En vez de depender de `{{ .ConfirmationURL }}`/la lista de redirect URLs permitidas
+  (que además apuntaba a `localhost:3000`, sin actualizar), se genera el enlace con la API de admin
+  de Supabase (`generate_link`), tomando el `token_hash` de la respuesta y armando a mano la URL
+  `/auth/confirm?token_hash=…&type=…&next=/admin/accept-invite` contra el dominio real. Evita
+  depender de configuración de Auth que no se puede tocar por API con las herramientas actuales.
