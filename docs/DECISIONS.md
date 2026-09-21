@@ -817,3 +817,23 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
   de Supabase (`generate_link`), tomando el `token_hash` de la respuesta y armando a mano la URL
   `/auth/confirm?token_hash=…&type=…&next=/admin/accept-invite` contra el dominio real. Evita
   depender de configuración de Auth que no se puede tocar por API con las herramientas actuales.
+
+- **2026-09-21 — El usuario reportó "no puedo subir fotos" en la pantalla "Agregar tienda" (creación
+  de una ruta nueva); no era un bug.** Se revisó el código (`RouteDetailScreen`, `OrderSheet`,
+  `OrderImagesPanel`, `useRouteDetailActions`) y las políticas RLS reales del proyecto
+  (`route_stop_images insert/select`, `pedidos admin insert`): el pedido (monto/partidas/fotos) ya
+  estaba completo y correctamente conectado, incluida la autoría por foto y el tope compartido
+  admin/chofer. El motivo real: las fotos son del `route_stop`, que recién existe en la base
+  después de tocar "Crear ruta" — en la pantalla de creación (antes de guardar) todavía no hay
+  dónde colgarlas. Se agregó una nota corta en `NewRouteScreen` explicando que el pedido se carga
+  después, tienda por tienda, desde el detalle de la ruta ya creada (donde cada fila ya decía "Sin
+  pedido cargado — toca para agregar", pero no bastaba sin el contexto de por qué no estaba en la
+  pantalla anterior).
+- **2026-09-21 — Deployment Protection ("Vercel Authentication") del proyecto interceptaba
+  cualquier visita a los previews (`*-git-*-briankgr01s-projects.vercel.app`), incluidos enlaces
+  de invitación/recuperación — confirmado con `curl` (redirige a `vercel.com/sso-api`), no era un
+  bug de la app. El dominio de producción (`geo-rut.vercel.app`) queda exento
+  (`ssoProtection.deploymentType: "all_except_custom_domains"`), así que una vez que el usuario
+  mezcló `dev` a `main` el problema desapareció solo, sin tocar ninguna configuración de seguridad
+  (se intentó desactivar la protección por API y el propio entorno de trabajo lo bloqueó a
+  propósito — correcto, es un cambio de cuenta que le corresponde decidir al usuario).
