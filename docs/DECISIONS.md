@@ -782,3 +782,10 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
      se reemplazaron por uno solo de `windowStart` (el único cálculo puro que queda del lado del
      cliente); el resto del comportamiento es un round-trip a Supabase, mismo criterio de testing
      que ya usa `features/routes/*.test.ts` (no mockear la red, testear solo la lógica pura).
+
+- **2026-09-21 — Enlace a `/admin/login` agregado en la pantalla de código del chofer.** El usuario
+  probó el preview de Vercel de la rama `dev` y no tenía forma de llegar al login de administrador
+  salvo escribiendo la URL a mano (la pantalla principal solo mostraba el código de ruta). Se agregó
+  un enlace de texto chico debajo del botón "Ingresar" ("¿Eres administrador? Ingresa con tu
+  cuenta"), sin un segundo botón grande que compita con la acción primaria del chofer (que es quien
+  va a entrar por acá casi siempre).
