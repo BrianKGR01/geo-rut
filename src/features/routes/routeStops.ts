@@ -196,6 +196,19 @@ export async function fetchRouteStopLiveStates(supabase: SupabaseDb, routeId: st
 }
 
 /**
+ * Orden final tras "Optimizar ruta": entregadas y en curso conservan su lugar relativo actual
+ * (nunca se reordenan solas), las pendientes van al final ya en el orden que calculó
+ * `optimizePendingOrder` (mismo criterio que `applyOptimizedOrder` de v1, ver `docs/DECISIONS.md`).
+ */
+export function optimizedRouteOrder<T extends { id: string; status: StopStatus }>(
+  stops: T[],
+  optimizedPendingIds: string[],
+): string[] {
+  const idsWithStatus = (status: StopStatus) => stops.filter((stop) => stop.status === status).map((stop) => stop.id);
+  return [...idsWithStatus("delivered"), ...idsWithStatus("delivering"), ...optimizedPendingIds];
+}
+
+/**
  * Aplica el resultado de un sondeo a la lista de tiendas ya cargada: solo pisa `status`/
  * `arrivedAt`/`deliveredAt` (lo que puede cambiar `chofer_update_stop`), conserva el resto de cada
  * tienda (pedido, orden en pantalla) tal cual estaba. Genérica sobre `T extends RouteStop` para

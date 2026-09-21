@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { mapRouteStopRow, mergeRouteStopLiveStates, pedidoMontoInputSchema, routeStopRowSchema, type RouteStopLiveState } from "./routeStops";
+import {
+  mapRouteStopRow,
+  mergeRouteStopLiveStates,
+  optimizedRouteOrder,
+  pedidoMontoInputSchema,
+  routeStopRowSchema,
+  type RouteStopLiveState,
+} from "./routeStops";
 
 function baseRow() {
   return {
@@ -106,5 +113,28 @@ describe("mergeRouteStopLiveStates", () => {
     expect(merged.items).toEqual([{ id: "i1" }]);
     expect(merged.images).toEqual([{ id: "img1" }]);
     expect(merged.status).toBe("delivering");
+  });
+});
+
+describe("optimizedRouteOrder", () => {
+  const stops = [
+    { id: "d", status: "delivered" as const },
+    { id: "a", status: "pending" as const },
+    { id: "b", status: "delivering" as const },
+    { id: "c", status: "pending" as const },
+  ];
+
+  it("deja primero las entregadas y luego las que se están entregando, en su orden actual", () => {
+    expect(optimizedRouteOrder(stops, ["c", "a"])).toEqual(["d", "b", "c", "a"]);
+  });
+
+  it("con más de una entregada o en curso, conserva el orden relativo entre ellas", () => {
+    const many = [
+      { id: "d1", status: "delivered" as const },
+      { id: "d2", status: "delivered" as const },
+      { id: "e1", status: "delivering" as const },
+      { id: "p", status: "pending" as const },
+    ];
+    expect(optimizedRouteOrder(many, ["p"])).toEqual(["d1", "d2", "e1", "p"]);
   });
 });

@@ -13,9 +13,12 @@ import {
   toAppData,
   type ChoferRouteData,
 } from "./choferRouteMapping";
+import { useGeoStore, waitForPosition } from "./geoStore";
+import { optimizePendingOrder } from "./planRoute";
+import { routingProviders } from "./providers";
 import { useChoferArrivalDetection } from "./useChoferArrivalDetection";
 import { useChoferLegs } from "./useChoferLegs";
-import { useChoferWriteQueue, type StopWriteParams } from "./useChoferWriteQueue";
+import { reorderChoferStops, useChoferWriteQueue, type StopWriteParams } from "./useChoferWriteQueue";
 
 export type ChoferRouteStatus = "loading" | "ready" | "not-found" | "error";
 
@@ -35,6 +38,8 @@ export function useChoferRoute(routeId: string) {
   const [status, setStatus] = useState<ChoferRouteStatus>("loading");
   const [data, setData] = useState<ChoferRouteData | null>(null);
   const [userId, setUserId] = useState<string>();
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeError, setOptimizeError] = useState<string>();
   const noteTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // El estado inicial ya es "loading" (primera carga); `refresh` es quien lo vuelve a poner en ese
@@ -172,6 +177,40 @@ export function useChoferRoute(routeId: string) {
     [queueUploadPhoto, routeId, userId],
   );
 
+  /**
+   * Optimiza el orden de visita de las tiendas pendientes (RF-6), a pedido del chofer (botón
+   * "Optimizar ruta"). Es una acción puntual, no encolada como `persistStopWrite`: si la RPC falla
+   * no queda nada a medio aplicar (ver `docs/PLAN_V2.md` §9) — se avisa con `optimizeError` y el
+   * chofer puede volver a tocar el botón. Las tiendas `delivered` nunca se tocan (la propia RPC las
+   * excluye y las deja en su posición).
+   */
+  const optimizeStops = useCallback(async () => {
+    if (!data) return;
+    const { delivered, remaining } = groupChoferStops(data);
+    const deliveringIds = remaining.filter((stop) => stop.status === "delivering").map((stop) => stop.id);
+    const pending = remaining.filter((stop) => stop.status === "pending");
+    if (pending.length < 2) return;
+    setOptimizing(true);
+    setOptimizeError(undefined);
+    try {
+      useGeoStore.getState().start();
+      const position = await waitForPosition(8000);
+      const origin = position ? { lat: position.lat, lng: position.lng } : undefined;
+      const { stopIds: optimizedPendingIds } = await optimizePendingOrder(pending, origin, routingProviders);
+      const orderedIds = [...deliveringIds, ...optimizedPendingIds];
+      await reorderChoferStops(supabase, routeId, orderedIds);
+      setData((current) =>
+        current
+          ? { ...current, route: { ...current.route, stopOrder: [...delivered.map((stop) => stop.id), ...orderedIds] } }
+          : current,
+      );
+    } catch {
+      setOptimizeError("No se pudo optimizar la ruta. Intenta de nuevo.");
+    } finally {
+      setOptimizing(false);
+    }
+  }, [data, supabase, routeId]);
+
   const view = data ? { stops: data.stops, route: data.route, ...groupChoferStops(data), next: nextChoferStop(data) } : undefined;
   const nextPending = view?.next?.status === "pending" ? view.next : undefined;
   const { askStopId, dismissAsk } = useChoferArrivalDetection(nextPending, markArrived);
@@ -193,5 +232,8 @@ export function useChoferRoute(routeId: string) {
     undoStop,
     setNote,
     uploadPhoto,
+    optimizing,
+    optimizeError,
+    optimizeStops,
   };
 }
