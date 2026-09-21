@@ -264,11 +264,27 @@ cómo y cuándo" para cualquier baja: **qué** es la fila y la tabla, **quién**
   pidió; si hiciera falta más adelante, es una tabla de triggers aparte que no obliga a tocar este
   modelo.
 
-## 5. Seguridad (RLS)
+## 5. Seguridad (RLS) — ✅ implementado (Fase 1)
 
-Todas las tablas con `enable row level security`. Reglas (a confirmar/ajustar al implementar,
-contra la documentación vigente de RLS de Supabase). En todas, "chofer" = usuario `authenticated`
-con `is_anonymous = true`; "admin" = `is_anonymous = false` y con fila activa en `admins`.
+Todas las tablas con `enable row level security`. En todas, "chofer" = usuario `authenticated` con
+`is_anonymous = true`; "admin" = `is_anonymous = false` y con fila activa en `admins` (función
+`is_active_admin()`, `security definer` para no recursar sobre la RLS de `admins`).
+
+**Ajuste real durante la implementación:** el chofer NO tiene una política `update` directa sobre
+`route_stops`. Encargarle a RLS "puede cambiar `status`/`note`/`arrived_at`/`delivered_at` pero no
+`pedido_monto`" es frágil con políticas de fila comunes (no hay una forma limpia de restringir por
+columna sin comparar cada campo contra su valor anterior). En cambio, el chofer llama a una función
+`chofer_update_stop(route_stop_id, status, note?, arrived_at?, delivered_at?)`
+(`security definer`, revocada de `anon`, concedida a `authenticated`) que valida por su cuenta que
+el `auth.uid()` que llama tiene una sesión canjeada para la ruta activa de esa tienda, y solo ahí
+escribe esas cuatro columnas — nunca `pedido_monto` ni el borrado lógico, porque la función ni los
+toca. El resto de la tabla (lectura, y toda la escritura del admin) sigue por RLS común.
+
+Con el advisor de seguridad del proyecto ya en verde salvo: (a) `route_driver_sessions` sin
+políticas — intencional, tabla solo para el servidor; (b) `chofer_update_stop`/`is_active_admin`
+ejecutables por `authenticated` — intencional, es como el chofer/las políticas las usan; y (c)
+"Leaked Password Protection" desactivada — configuración de Auth del proyecto (no de esquema), se
+activa a mano en el dashboard (Authentication → Providers → Email), pendiente para el usuario.
 
 - **`admins`**: cualquier admin puede leer la lista completa (para la pantalla de "administradores",
   incluye invitar/quitar). Sin `insert` directo desde el cliente (lo hace el endpoint `invite` con

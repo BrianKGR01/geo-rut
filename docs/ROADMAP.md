@@ -12,12 +12,14 @@ un commit (Conventional Commits) una vez que `npm run check` pasa. Al completar 
 de `dev` a `main`.
 
 ## Fase 1 — Supabase: proyecto y esquema base
-- [ ] `@supabase/ssr` + `@supabase/supabase-js` instalados (versión vigente, verificada en la documentación al momento de instalar)
-- [ ] Migraciones SQL (vía MCP `apply_migration`, con nombre y control de versión): tablas `admins`, `drivers`, `stores`, `routes`, `route_stops`, `route_stop_items`, `route_stop_images`, `route_driver_sessions`; `deleted_at`/`deleted_by` (borrado lógico) en todas menos `route_driver_sessions`; trigger de tope de 3 fotos por tienda en `route_stop_images`
-- [ ] RLS habilitada y con políticas en las ocho tablas (`docs/PLAN_V2.md` §5)
-- [ ] Bucket de Storage `pedidos` (privado) + políticas RLS sobre `storage.objects`
-- [x] Primer administrador invitado (`brayankgr@gmail.com`, vía `auth.admin.inviteUserByEmail`) — falta la fila en `admins` (se crea en la migración de arriba, con su `user_id`)
+- [ ] `@supabase/ssr` + `@supabase/supabase-js` instalados en el proyecto Next.js (versión vigente, verificada en la documentación al momento de instalar) — queda para la Fase 2, cuando se usan por primera vez
+- [x] Migraciones SQL (vía MCP `apply_migration`): tablas `admins`, `drivers`, `stores`, `routes`, `route_stops`, `route_stop_items`, `route_stop_images`, `route_driver_sessions`; `deleted_at`/`deleted_by` (borrado lógico) en todas menos `route_driver_sessions`; trigger de tope de 3 fotos por tienda en `route_stop_images` (probado)
+- [x] RLS habilitada y con políticas en las ocho tablas (`docs/PLAN_V2.md` §5); el chofer escribe `route_stops` vía la función `chofer_update_stop`, no con `update` directo
+- [x] Bucket de Storage `pedidos` (privado) + políticas RLS sobre `storage.objects`
+- [x] Primer administrador invitado (`brayankgr@gmail.com`) y con su fila en `admins`
 **Hecho cuando:** `list_tables`/`get_advisors` (MCP de Supabase) muestran las ocho tablas con RLS activa y sin advertencias de seguridad; el primer admin tiene su fila en `admins`.
+
+> **Nota de cierre (2026-09-21).** Hecho: esquema completo (8 tablas, RLS, trigger de tope de fotos, función `chofer_update_stop`, bucket `pedidos` con sus políticas) aplicado y verificado contra los advisors de seguridad y rendimiento del propio proyecto (ver `docs/DECISIONS.md` — Fase 1); ambos quedaron limpios salvo hallazgos intencionales/documentados. Primer admin (`brayankgr@gmail.com`) invitado y con fila en `admins`. Pendiente, no bloquea seguir: instalar `@supabase/ssr`/`supabase-js` en el proyecto (se hace al empezar la Fase 2, que es donde se usan por primera vez) y activar "Leaked Password Protection" en el dashboard de Supabase (configuración de Auth, no de esquema). Probar a mano: no aplica todavía (sin UI); se puede confirmar el esquema con `list_tables`/`get_advisors` desde el MCP de Supabase.
 
 ## Fase 2 — Login de administrador
 - [ ] Clientes de Supabase para navegador y servidor (`lib/supabase/client.ts`, `lib/supabase/server.ts`) + middleware de Next para refrescar la cookie de sesión
