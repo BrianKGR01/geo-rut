@@ -44,6 +44,24 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_rate_limit_attempts: {
+        Row: {
+          attempted_at: string
+          id: number
+          ip: string
+        }
+        Insert: {
+          attempted_at?: string
+          id?: never
+          ip: string
+        }
+        Update: {
+          attempted_at?: string
+          id?: never
+          ip?: string
+        }
+        Relationships: []
+      }
       drivers: {
         Row: {
           created_at: string
@@ -364,6 +382,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      has_claimed_route: { Args: { p_route_id: string }; Returns: boolean }
       is_active_admin: { Args: never; Returns: boolean }
     }
     Enums: {

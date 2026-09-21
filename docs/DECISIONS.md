@@ -762,3 +762,23 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
      escribir en la base: crear la tabla, migrar `claimRateLimit.ts` a leer/escribir ahí vía el
      cliente admin, y solo entonces volver async `isRateLimited`/`registerFailedAttempt` (y su uso en
      `src/app/api/routes/claim/route.ts`).
+
+- **2026-09-21 — Los dos hallazgos bloqueados de arriba, aplicados** (sesión con acceso directo al
+  proyecto real, sin el bloqueo de permisos que topó la sesión anterior):
+  1. **RLS de `storage.objects` corregida** (migración `v2_fix_storage_driver_rls_hole`): las
+     políticas `pedidos driver select`/`pedidos driver insert` pasaron a usar `has_claimed_route()`,
+     exactamente el SQL que ya había quedado verificado y documentado arriba. Probado simulando un
+     chofer con sesión canjeada (`set local role authenticated` + `request.jwt.claims`): antes daba
+     0 filas, después encuentra la ruta. `get_advisors` (seguridad) sin hallazgos nuevos.
+  2. **`claim_rate_limit_attempts`, tabla nueva** (migración `v2_claim_rate_limit_table`): contador
+     compartido para `/api/routes/claim` en vez del `Map` en memoria — `(id, ip, attempted_at)`, RLS
+     habilitada sin políticas (solo la toca `createAdminClient()`, igual que
+     `route_driver_sessions`). `lib/http/claimRateLimit.ts` pasó a async, recibe el cliente de
+     Supabase como parámetro (mismo patrón que el resto de `features/*/api.ts`) y hace `select
+     count` + `delete` de los intentos vencidos de esa IP en cada registro, en vez de filtrar un
+     arreglo en memoria. `src/types/supabase.ts` regenerado con la tabla y con `has_claimed_route`
+     (que ya existía en la base pero no en los tipos, porque se creó en una sesión anterior sin
+     volver a generar). Los tests viejos de `claimRateLimit.test.ts` (que ejercitaban el `Map`)
+     se reemplazaron por uno solo de `windowStart` (el único cálculo puro que queda del lado del
+     cliente); el resto del comportamiento es un round-trip a Supabase, mismo criterio de testing
+     que ya usa `features/routes/*.test.ts` (no mockear la red, testear solo la lógica pura).

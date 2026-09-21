@@ -30,7 +30,8 @@ function clientIp(request: Request): string {
  */
 export async function POST(request: Request) {
   const ip = clientIp(request);
-  if (isRateLimited(ip)) return fail("TOO_MANY_ATTEMPTS");
+  const supabase = createAdminClient();
+  if (await isRateLimited(supabase, ip)) return fail("TOO_MANY_ATTEMPTS");
 
   const body = await request.json().catch(() => null);
   const parsed = claimRouteRequestSchema.safeParse(body);
@@ -39,14 +40,13 @@ export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : "";
   if (!token) {
-    registerFailedAttempt(ip);
+    await registerFailedAttempt(supabase, ip);
     return fail("UNAUTHORIZED");
   }
 
-  const supabase = createAdminClient();
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
   if (userError || !userData.user) {
-    registerFailedAttempt(ip);
+    await registerFailedAttempt(supabase, ip);
     return fail("UNAUTHORIZED");
   }
 
@@ -59,11 +59,11 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (routeError) return fail("CLAIM_FAILED");
   if (!routeRow) {
-    registerFailedAttempt(ip);
+    await registerFailedAttempt(supabase, ip);
     return fail("ROUTE_NOT_FOUND");
   }
   if (routeRow.status !== "active") {
-    registerFailedAttempt(ip);
+    await registerFailedAttempt(supabase, ip);
     return fail("ROUTE_NOT_ACTIVE");
   }
 

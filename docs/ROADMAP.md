@@ -209,6 +209,17 @@ de `dev` a `main`.
 > foto, confirmar que la UI avanza igual y aparece el aviso "Reintentando…", volver a activar la red
 > y confirmar que el aviso desaparece solo (sin recargar) y que el cambio quedó guardado en `/admin`.
 
+> **Addendum (revisión de código posterior).** La revisión adversarial encontró 5 hallazgos reales;
+> 3 se corrigieron en el momento (`useChoferWriteQueue` ya no traga en silencio un rechazo
+> permanente — tope de 3 fotos o pérdida de acceso a la ruta). Los otros 2 quedaron documentados sin
+> aplicar porque esa sesión no tenía permiso para tocar el proyecto de Supabase en vivo; se
+> completaron después, con acceso directo: **RLS de `storage.objects` para el chofer** (el mismo
+> agujero de "un chofer no podía leer su ruta" que ya se había corregido en las demás tablas, pero
+> se había pasado por alto en Storage — sin esto, ningún chofer real podía ver ni subir fotos) y
+> **el límite de intentos de `/api/routes/claim` pasó de un `Map` en memoria a una tabla
+> (`claim_rate_limit_attempts`)**, porque en Vercel cada instancia serverless puede tener su propio
+> proceso y el `Map` no se compartía entre ellas. Detalle completo en `docs/DECISIONS.md`.
+
 ## Futuro (no tocar en v2)
 Ver `docs/PLAN_V2.md` §10 (posición GPS del chofer en vivo / Supabase Realtime, vista de
 papelera/auditoría del borrado lógico, log de auditoría genérico) y PRD §10.
