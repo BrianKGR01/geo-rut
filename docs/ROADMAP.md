@@ -152,6 +152,12 @@ de `dev` a `main`.
 > foto (hasta 3, con "Subida por el chofer") y agregar observación, que "Ver lista" muestra
 > entregadas/pendientes de solo lectura, y que un código de una ruta en borrador o inventado muestra
 > el mensaje correspondiente sin romper la pantalla.
+>
+> **Addendum (Fase 7, revisión de RLS).** El "Hecho cuando" de esta fase no se había podido verificar
+> de punta a punta en el proyecto real: además del bloqueante de "Anonymous Sign-Ins" (ya anotado
+> arriba), la revisión de RLS de la Fase 7 encontró que un chofer con sesión canjeada tampoco podía
+> LEER su ruta (la política dependía de una tabla sin permisos para su rol, ver `docs/DECISIONS.md`
+> — Fase 7). Ya está corregido y reverificado con datos de prueba reales contra el proyecto.
 
 ## Fase 6 — Seguimiento del administrador (polling)
 - [x] Hook de polling (`features/routes/useRouteLiveStatus.ts`): `select` liviano de `route_stops` por `route_id` cada 10–15 s, pausado con `visibilitychange` y cortado fuera de la vista de esa ruta (ver `docs/PLAN_V2.md` §6)
@@ -178,11 +184,30 @@ de `dev` a `main`.
 > pestaña y volver para confirmar que el sondeo se pausó y retoma solo.
 
 ## Fase 7 — Resiliencia y pulido
-- [ ] Manejo de reintentos ante pérdida de señal durante la ejecución de una ruta activa (ver `docs/PLAN_V2.md` §9)
-- [ ] Revisión de RLS de punta a punta: probar como administrador, como chofer con código válido, como chofer con código de una ruta inactiva/borrada, como anónimo sin canjear ningún código; confirmar que ningún "eliminar" de la UI deja una fila realmente borrada
-- [ ] README actualizado (login, roles, variables de entorno necesarias en Vercel, cómo se prueba cada rol)
-- [ ] `npm run check` en verde
+- [x] Manejo de reintentos ante pérdida de señal durante la ejecución de una ruta activa (ver `docs/PLAN_V2.md` §9)
+- [x] Revisión de RLS de punta a punta: probar como administrador, como chofer con código válido, como chofer con código de una ruta inactiva/borrada, como anónimo sin canjear ningún código; confirmar que ningún "eliminar" de la UI deja una fila realmente borrada
+- [x] README actualizado (login, roles, variables de entorno necesarias en Vercel, cómo se prueba cada rol)
+- [x] `npm run check` en verde
 **Hecho cuando:** se cumple la "Definición de terminado" de `AGENTS.md`, incluido el flujo de login para los dos roles.
+
+> **Nota de cierre (2026-09-21).** Hecho: **(1) Resiliencia sin señal del chofer**
+> (`lib/http/retryWithBackoff.ts`, `features/route/pendingStopWrites.ts`,
+> `features/route/useChoferWriteQueue.ts`) — cada escritura del chofer (`chofer_update_stop`, subida
+> de foto) reintenta unas pocas veces con backoff corto y, si sigue sin poder, queda encolada
+> (cambios de estado en `localStorage`, fotos en memoria) y se reintenta sola al volver la conexión o
+> la pestaña, sin revertir el cambio optimista ni fallar en silencio (`Banner` "Reintentando…"). Ver
+> el detalle y los límites aceptados en `docs/DECISIONS.md`, "Fase 7". **(2) Revisión de RLS de punta
+> a punta** contra el proyecto real (`wwvretfzbjxdtxqtuvij`), simulando roles y con una llamada real
+> al endpoint de canje — encontró y corrigió un agujero real: un chofer con sesión canjeada no podía
+> leer su propia ruta (la política dependía de una tabla, `route_driver_sessions`, sin permisos para
+> su rol). Corregido con la migración `v2_fix_driver_session_rls_hole` y reverificado; detalle
+> completo (qué se probó, qué se encontró, cómo se corrigió) en `docs/DECISIONS.md`, "Fase 7". **(3)
+> README** reescrito para v2 (roles, variables de entorno por nombre, límites conocidos), sin repetir
+> `docs/PLAN_V2.md`. **(4)** `npm run check` en verde (lint + typecheck + test + build). Cómo probarlo
+> a mano: además de los pasos ya descritos en las Fases 2–6, para la resiliencia — con la ruta del
+> chofer abierta, cortar la red del celular (modo avión), tocar "Ya llegué"/"Entregado" o subir una
+> foto, confirmar que la UI avanza igual y aparece el aviso "Reintentando…", volver a activar la red
+> y confirmar que el aviso desaparece solo (sin recargar) y que el cambio quedó guardado en `/admin`.
 
 ## Futuro (no tocar en v2)
 Ver `docs/PLAN_V2.md` §10 (posición GPS del chofer en vivo / Supabase Realtime, vista de

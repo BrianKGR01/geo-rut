@@ -583,3 +583,112 @@ algunas funciones nuevas de subida/URLs firmadas.
   mapa (Fase 3, ver su nota de cierre: solo `RouteInfoCard` + `RouteStopsEditor`); agregar un mapa
   ahí es un cambio de alcance mayor que esta fase no pidió, y `mergeRouteStopLiveStates` ya deja el
   dato listo (`route.stops` con `status` fresco) para cuando se decida sumarlo.
+
+## Fase 7 — Resiliencia, revisión de RLS y pulido
+
+- **2026-09-21 — Resiliencia sin señal: reintentos rápidos con backoff + cola simple, sin revertir
+  el estado optimista.** Antes (Fase 5), si `chofer_update_stop` fallaba, `useChoferRoute` revertía
+  el cambio local y mostraba un error genérico ("perdía el toque"). Ahora: `retryWithBackoff`
+  (`lib/http/retryWithBackoff.ts`, puro, testeado, con `wait` inyectable) reintenta cada escritura
+  unas pocas veces con espera corta creciente (800 ms/2 s/5 s); si se agotan esos reintentos, la
+  escritura queda encolada (`features/route/pendingStopWrites.ts`, persistida en `localStorage` con
+  Zod validando lo que se lee de vuelta — mismo criterio que `supabaseSession.ts`, `storage`
+  inyectable para poder testear sin `jsdom`, ver `pendingStopWrites.test.ts`) y se reintenta sola en
+  el próximo `online` o `visibilitychange`→visible (`useChoferWriteQueue.ts`), sin revertir el
+  cambio optimista: la UI ya avanzó (p. ej. "Entregado") y el chofer no tiene que notarlo ni repetir
+  el toque. Mientras haya algo encolado, `ChoferExecutionScreen` muestra un `Banner` tono "warn" ("No
+  se pudo guardar todo todavía. Reintentando…"), nunca falla en silencio
+  (`docs/BUENAS_PRACTICAS.md`).
+- **2026-09-21 — Las fotos encoladas viven solo en memoria (`useRef` dentro de
+  `useChoferWriteQueue`), no en `localStorage`.** Un `File` no se puede volcar ahí sin convertirlo a
+  base64 (infla el storage y complica la limpieza); la cola en memoria sobrevive a un fallo de red
+  mientras la pestaña siga abierta (que es el caso típico: el chofer sigue en la app, solo perdió
+  señal un momento) y se pierde si la cierra antes de reconectar — límite aceptado explícitamente por
+  la tarea ("no hace falta algo elaborado, con que no se pierda el dato alcanza"); documentado acá en
+  vez de sumar una cola persistida más compleja (IndexedDB) sin que se haya pedido.
+- **2026-09-21 — `uploadPhoto`/`persistStopWrite` nunca relanzan un error de red: `runEvent` ya no
+  tiene una rama de "revertir".** Se quitó el estado `actionError`/`error` que devolvía
+  `useChoferRoute` (quedó muerto: nunca se volvía a setear a un mensaje real una vez que las fallas
+  de red pasaron a resolverse con la cola) y se reemplazó por `retrying` (booleano: ¿hay algo
+  encolado?), que es lo que la UI necesita mostrar. La única falla que sigue siendo "de verdad"
+  (no reintentable) es el tope de 3 fotos (`PHOTO_LIMIT_MESSAGE`): no es un problema de red, así que
+  `uploadPhoto` la reconoce por mensaje y la devuelve tal cual, sin encolar ni reintentar (reintentar
+  no cambiaría el resultado).
+- **2026-09-21 — Reintentos deliberadamente "ingenuos": no se distingue una falla de red de un
+  rechazo legítimo (p. ej. RLS deniega porque el admin ya finalizó la ruta) para las escrituras de
+  estado.** Distinguir ambos casos con precisión pediría inspeccionar el código de error de
+  PostgREST/Supabase caso por caso; la tarea pidió simplicidad ("no hace falta algo elaborado") y el
+  costo de un reintento de más es bajo (una llamada RPC ociosa cada vez que el chofer recupera
+  señal). Si algún día una ruta finalizada deja una escritura reintentando para siempre, el chofer ya
+  ve "Ya no tienes acceso a esta ruta" al recargar (Fase 5); queda anotado como una mejora posible,
+  no como algo que bloquee esta fase.
+
+### Revisión de RLS de punta a punta — agujero real encontrado y corregido
+
+Se probaron las cuatro situaciones pedidas simulando roles contra el proyecto real
+(`wwvretfzbjxdtxqtuvij`) con el truco documentado por Supabase (`set local role authenticated; set
+local "request.jwt.claims" = '...'` dentro de una transacción), usando datos de prueba creados y
+borrados en la misma sesión (nunca quedaron filas de prueba en la base) y, para (d), una llamada real
+por HTTP al endpoint (`npm run dev` + `curl`), con un usuario de prueba temporal (creado y borrado
+vía la API admin de Supabase) — como "Anonymous Sign-Ins" sigue desactivado en el proyecto (pendiente
+del usuario desde la Fase 5), se usó un usuario normal con contraseña para conseguir un JWT real: la
+lógica de `/api/routes/claim` no distingue `is_anonymous` (solo verifica que el token sea válido), así
+que sirve igual para probar el endpoint end-to-end.
+
+**Agujero encontrado: un chofer con una sesión canjeada en una ruta activa no podía leer NADA de esa
+ruta.** `route_driver_sessions` tiene RLS habilitada sin políticas a propósito (§5 de
+`docs/PLAN_V2.md`: es una tabla solo para el servidor). El problema es que las políticas de lectura
+de `routes`, `route_stops`, `route_stop_items` y `route_stop_images` (más la de `insert` de
+`route_stop_images`, para que el chofer suba fotos) hacían un `EXISTS`/`JOIN` **directo** contra
+`route_driver_sessions` dentro de su propia condición — y esa referencia también queda sujeta a la
+RLS de `route_driver_sessions`, que la bloquea para el rol `authenticated` (chofer o admin da igual),
+salvo que se lea desde una función `security definer` (como ya hacía `chofer_update_stop`, por eso
+esa RPC sí funcionaba). Confirmado simulando el rol de un chofer con sesión canjeada: `select count(*)
+from routes` daba `0` en vez de `1`. Es decir, el flujo completo del chofer (Fase 5) nunca se pudo
+haber probado de punta a punta en este proyecto real porque, además de "Anonymous Sign-Ins"
+desactivado, esta segunda falla lo hubiera roto igual apenas se activara: el chofer habría entrado
+con un código válido y visto una pantalla vacía o de error.
+
+**Corrección** (migración `v2_fix_driver_session_rls_hole`, mismo patrón que ya usa
+`is_active_admin()`): función nueva `public.has_claimed_route(p_route_id uuid) returns boolean`,
+`security definer`, `execute` revocado de `public`/`anon` y concedido solo a `authenticated`; las
+cinco políticas (`routes select`, `route_stops select`, `route_stop_items select`, `route_stop_images
+select`, `route_stop_images insert`) se reescribieron (`alter policy`) para llamar a esa función en
+vez de consultar `route_driver_sessions` directo. El advisor de seguridad marca `has_claimed_route`
+como "ejecutable por `authenticated`" — igual que `chofer_update_stop`/`is_active_admin`, intencional:
+solo devuelve un booleano sobre la sesión del propio `auth.uid()` que llama, no expone filas de
+`route_driver_sessions`.
+
+**Resultado, re-verificado después de la corrección** (mismas cuatro situaciones que pedía la
+tarea):
+
+- **(a) Admin:** ve las 3 rutas de prueba (incluida una en `draft`, que un chofer nunca debería ver),
+  ambas tiendas de rutas distintas, la lista completa de `admins`, y puede actualizar una ruta
+  (`UPDATE routes SET order_mode=...` afectó 1 fila).
+- **(b) Chofer con sesión canjeada en una ruta activa:** ve exactamente esa ruta (`routes` = 1 fila,
+  no la otra ruta activa de prueba) y su propia tienda (`route_stops` = 1 fila, no la de la otra
+  ruta); un `UPDATE route_stops SET status=...` o `SET pedido_monto=...` directo afecta **0** filas
+  (RLS lo bloquea, no hay política de `update` para chofer); `chofer_update_stop` sobre su propia
+  tienda funciona (`status` pasó a `delivering`) y **no** toca `pedido_monto` (siguió en 100, el
+  valor original); `chofer_update_stop` sobre la tienda de la OTRA ruta lanza `sin acceso a esta
+  ruta`; no ve `stores` ni `admins` (0 filas).
+- **(c) Chofer sin canjear ningún código (`sub` sin fila en `route_driver_sessions`):** `routes`,
+  `route_stops`, `stores`, `admins` y `drivers` dan **0** filas.
+- **(d) Código de una ruta no activa, vía el endpoint real:** `POST /api/routes/claim` sin token →
+  `401`; body inválido → `400`; código inexistente → `404 ROUTE_NOT_FOUND`; código de una ruta en
+  `draft` → `409 ROUTE_NOT_ACTIVE`; código de la ruta `active` → `200` con el `routeId` (y ahí sí
+  quedó la fila en `route_driver_sessions`, verificado y borrado después).
+
+No se tocó nada del guardado en Storage (RLS de `storage.objects`) porque ese camino no depende de
+`route_driver_sessions` en su condición (usa `storage.foldername(name)` sobre el propio path, ya
+verificado en la Fase 4/5 al subir fotos reales como admin); tampoco se tocó `chofer_update_stop`
+(ya bypassaba el problema al ser `security definer`) ni ninguna política de escritura del admin. Los
+demás avisos del advisor (claves foráneas sin índice, `auth.<function>()` sin `(select ...)` en
+algunas políticas viejas de la Fase 1, índices sin uso) son de **rendimiento**, no de seguridad, y ya
+estaban aceptados como deuda medible más adelante (`docs/BUENAS_PRACTICAS.md`: "medir antes de
+optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de RLS.
+
+- **2026-09-21 — README reescrito para v2** (login de administrador, código del chofer, variables de
+  entorno requeridas —nombres, no valores—, límites conocidos), sin repetir el detalle de
+  `docs/PLAN_V2.md`. La sección "Arquitectura" se actualizó con las carpetas nuevas (`features/route`
+  vs `features/routes`, `lib/supabase`, `lib/http`).
