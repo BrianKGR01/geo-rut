@@ -871,3 +871,14 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
   `DriverFormSheet`, que sí cierra tras guardar): el administrador suele encadenar varias
   correcciones sobre la misma tienda en una sola visita (nombre, mover el pin, agregar una foto), y
   cerrar tras cada guardado individual lo obligaría a reabrir la fila cada vez.
+
+- **2026-09-21 — `/admin/login` no tenía forma de volver a la pantalla del chofer.** El usuario
+  probó `/admin` → "Cerrar sesión" y quedó varado en el login de administrador, sin ningún enlace
+  de vuelta a `/` (donde el chofer ingresa su código) — antes solo existía el camino inverso (el
+  enlace "¿Eres administrador?" que ya tenía `/`). Se agregó el mismo tipo de enlace, en espejo,
+  debajo del botón "Ingresar" del login de administrador.
+- **2026-09-21 — Pendiente CONFIRMADO otra vez por el usuario: "Anonymous Sign-Ins" sigue
+  desactivado en el dashboard de Supabase** (Authentication → Providers → Anonymous Sign-Ins). El
+  chofer no puede canjear ningún código hasta que se active — no es un bug de código, ya estaba
+  documentado como paso manual pendiente (ver más arriba, "Fase 1"); confirmado con la captura del
+  usuario mostrando el mismo mensaje que ya arma `supabaseSession.ts` para ese caso exacto.
