@@ -184,3 +184,61 @@ Formato: fecha — decisión — motivo.
   una Server Action: `signOut()` no necesita la clave secreta ni nada exclusivo del servidor, y el
   resto de esta app ya resuelve interacciones así (`'use client'` + el cliente de navegador de
   `@supabase/ssr`, que persiste la sesión en cookies igual que el servidor).
+
+## Fase 3 — Capa de datos de Supabase (drivers/stores/routes)
+
+Primer avance de la Fase 3: `features/drivers/api.ts`, `features/stores/api.ts` y
+`features/routes/{api,routeStops,routeStopItems,routeStopImages,driverCode}.ts` (todavía sin
+pantallas — eso sigue en la misma fase). Cada función toma el cliente de Supabase como parámetro
+(sirve para el de navegador y el de servidor) y valida con Zod la fila que devuelve la base antes
+de mapearla al dominio.
+
+- **2026-09-21 — `lib/supabase/types.ts` (`SupabaseDb`) y `lib/supabase/schemas.ts` (fragmentos de
+  Zod compartidos: `latSchema`, `lngSchema`, `coordsSourceSchema`, `stopStatusSchema`,
+  `routeStatusSchema`, `orderModeSchema`, `startPointSchema`, `legsCacheSchema`).** Evita repetir
+  el mismo tipo de cliente y las mismas validaciones en `features/drivers`, `features/stores` y
+  `features/routes`. No reusa `lib/storage/schema.ts`: ese archivo valida el esquema v1 en
+  `localStorage` (una capa distinta), aunque las formas coincidan.
+- **2026-09-21 — Tipos de dominio nuevos por tabla (`Driver`, `StoreRecord`, `RouteSummary`,
+  `RouteStop`, `RouteStopItem`, `RouteStopImage`), no uno solo genérico.** Reusan campo por campo
+  `Stop`/`RoutePlan`/`LatLng`/`CoordsSource` de `src/types/domain.ts` donde la forma coincide
+  (pedido explícito de la tarea); `RouteStop` es casi mecánico ("mismos campos que `Stop` +
+  `pedidoMonto`") salvo que no tiene `coordsSource`/`sourceUrl` (esas viven en el catálogo
+  `stores`, no en la copia de `route_stops`) ni `orderItems` (las partidas se manejan aparte, con
+  su propio CRUD). No se
+  reusó `OrderItem` para `RouteStopItem`: en `OrderItem.quantity` es obligatorio y en
+  `route_stop_items.quantity` es `numeric` nullable (partida sin cantidad todavía).
+- **2026-09-21 — `getRoute` en 2 consultas, no 3–4.** Una trae la ruta; la otra trae
+  `route_stops` con `route_stop_items` y `route_stop_images` incrustados en el mismo `select`
+  (relaciones a un solo nivel de profundidad desde `route_stops`, cada una con su propio FK sin
+  ambigüedad) y filtrados con `.is('route_stop_items.deleted_at', null)` /
+  `.is('route_stop_images.deleted_at', null)` (sin `!inner`). Verificado contra la documentación
+  vigente de Supabase (`search_docs`, "Query embedded tables — Filtering through embedded
+  tables"): sin `!inner` las relaciones embebidas usan semántica de `left join`, así que una
+  tienda sin fotos/partidas activas sigue apareciendo (arreglo vacío), solo se filtra el contenido
+  del arreglo embebido. El orden final (tiendas por `position`, partidas por `position`, fotos por
+  `created_at`) se aplica en el cliente con una función pura (`assembleRouteWithStops`, testeada
+  sin red) en vez de pedírselo a PostgREST, para no depender de una opción de orden anidado sin
+  verificar.
+- **2026-09-21 — `reorderRouteStops` hace un `update` por fila en paralelo (`Promise.all`), no un
+  único `upsert` en lote.** Un `upsert` de PostgREST con columnas parciales (`{id, position}`)
+  falla: intenta el `insert` antes de resolver el conflicto y `route_stops` tiene columnas
+  `not null` sin default (`route_id`, `name`, `lat`, `lng`) que ese payload no trae. Mandar la fila
+  completa por cada tienda para poder usar `upsert` sería más frágil (riesgo de pisar `note`/
+  `pedido_monto`/`status` con datos desactualizados) que N `update`s acotados a `position`. No hay
+  una función `rpc` para esto en el esquema ya aplicado (agregar una es un cambio de esquema fuera
+  del alcance de esta tarea); N consultas concurrentes es aceptable porque una ruta rara vez pasa
+  de unas pocas decenas de tiendas.
+- **2026-09-21 — `insertRouteStopImage` no reimplementa el conteo de fotos activas** (ya lo hace el
+  trigger `enforce_route_stop_images_limit` de la Fase 1), pero sí traduce su rechazo a un mensaje
+  en español: se confirmó con `pg_get_functiondef` que el trigger usa
+  `errcode = 'check_violation'` (SQLSTATE `23514`), así que `isPhotoLimitError` (función pura,
+  testeada) reconoce ese código antes de relanzar cualquier otro error tal cual.
+- **2026-09-21 — `addRouteStop`/`createRouteStopItem` calculan la posición solos (máxima + 1)** en
+  vez de pedírsela a quien llama, mismo criterio que `addStop` en v1 ("la tienda nueva va al
+  final"): una consulta extra por alta, pero evita que la pantalla tenga que llevar la cuenta de
+  cuántas tiendas/partidas activas hay.
+- **2026-09-21 — `pedidoMontoInputSchema` (Bs, positivo y múltiplo de 5) vive en
+  `features/routes/routeStops.ts` y se exporta.** Mismo `check` que ya tiene `route_stops` en la
+  base; se valida también en el cliente para dar un mensaje claro antes del viaje a Supabase, y
+  para que el formulario del pedido (Fase 4) lo reuse sin duplicarlo.
