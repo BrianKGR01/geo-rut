@@ -67,6 +67,26 @@ export async function createStore(
   return mapStoreRow(storeRowSchema.parse(data));
 }
 
+export interface UpdateStoreInput {
+  name?: string;
+  lat?: number;
+  lng?: number;
+  coordsSource?: CoordsSource;
+}
+
+/** Edita nombre y/o ubicación de una tienda ya existente del catálogo (pantalla `/admin/stores`). */
+export async function updateStore(supabase: SupabaseDb, id: string, patch: UpdateStoreInput): Promise<StoreRecord> {
+  const update: TablesUpdate<"stores"> = { updated_at: new Date().toISOString() };
+  if (patch.name !== undefined) update.name = patch.name.trim() || "Tienda sin nombre";
+  if (patch.lat !== undefined) update.lat = patch.lat;
+  if (patch.lng !== undefined) update.lng = patch.lng;
+  if (patch.coordsSource !== undefined) update.coords_source = patch.coordsSource;
+
+  const { data, error } = await supabase.from("stores").update(update).eq("id", id).select(STORE_COLUMNS).single();
+  if (error) throw error;
+  return mapStoreRow(storeRowSchema.parse(data));
+}
+
 /** Baja lógica: desaparece del catálogo para elegir en rutas nuevas, no de las ya armadas. */
 export async function deactivateStore(supabase: SupabaseDb, id: string, deletedBy: string): Promise<void> {
   const update: TablesUpdate<"stores"> = { deleted_at: new Date().toISOString(), deleted_by: deletedBy };

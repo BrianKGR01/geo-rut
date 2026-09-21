@@ -837,3 +837,37 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
   mezcló `dev` a `main` el problema desapareció solo, sin tocar ninguna configuración de seguridad
   (se intentó desactivar la protección por API y el propio entorno de trabajo lo bloqueó a
   propósito — correcto, es un cambio de cuenta que le corresponde decidir al usuario).
+
+## Catálogo de tiendas administrable sin pasar por crear una ruta
+
+- **2026-09-21 — El usuario reportó (mensaje de voz) que el panel de administrador solo daba acceso
+  a crear ruta / choferes / administradores, y que el catálogo de tiendas (nombre, ubicación, fotos
+  propias) no se podía ver ni editar salvo escondido dentro del flujo de crear una ruta — "mala
+  planeación", en sus palabras, porque ya tenía tiendas cargadas y no podía agregarles imágenes. Se
+  agregó la pantalla `/admin/stores` (`StoresScreen`, análoga a `DriversScreen`): lista completa del
+  catálogo con buscador simple client-side, alta (reusa `NewCatalogStoreForm` tal cual, sin
+  reescribirlo), edición (`StoreEditSheet`: nombre, "Cambiar ubicación" con el mismo
+  `ManualPickerStep` de pantalla completa que ya usaba `StopDetailSheet` en v1) y baja lógica
+  (`ConfirmDialog` + `deactivateStore`, mismo patrón que choferes). Enlace "Tiendas" agregado al
+  `<nav>` de `RoutesScreen` junto a "Choferes"/"Administradores".
+- **2026-09-21 — Fotos propias de la tienda del catálogo: tabla `store_images` + bucket de Storage
+  `tiendas` (privado, `{storeId}/{archivo}`), ambos ya aplicados antes de esta tarea (RLS
+  "`store_images admin all`"/"`tiendas admin all`", admin-only, y un trigger de tope de 3 igual que
+  `route_stop_images`) — verificados contra el proyecto real (`wwvretfzbjxdtxqtuvij`) antes de
+  escribir código, no asumidos de la descripción de la tarea. Sin `uploaded_role`: a diferencia del
+  pedido de una entrega, acá el chofer nunca participa, así que no hace falta distinguir quién subió
+  cada foto.
+- **2026-09-21 — `isPhotoLimitError` (detecta el `check_violation`/`23514` del trigger de tope)
+  se extrajo a `lib/supabase/photoLimitError.ts`, compartido entre `features/routes/routeStopImages.ts`
+  y el nuevo `features/stores/storeImages.ts`** (que replica el resto del patrón completo de
+  `routeStopImages.ts` — schema Zod, `mapRow`, `list`/`insert`/`upload` con limpieza del archivo
+  huérfano si falla el `insert`, `getSignedUrls` — porque el resto sí difiere lo suficiente por
+  tabla/bucket/columnas como para no valer la pena una abstracción genérica todavía).
+- **2026-09-21 — `StoreImagesPanel` (nuevo, en `components/admin/store-picker/`) agrega un botón de
+  borrar (soft delete) que `OrderImagesPanel` no tiene construido en UI.** Antes ningún flujo de
+  fotos permitía borrar desde la pantalla; acá sí correspondía porque el catálogo es 100% admin
+  (`removeStoreImage` ya estaba cubierto por RLS, solo faltaba el botón + `ConfirmDialog`).
+- **2026-09-21 — `StoreEditSheet` no se cierra sola al guardar nombre o ubicación** (a diferencia de
+  `DriverFormSheet`, que sí cierra tras guardar): el administrador suele encadenar varias
+  correcciones sobre la misma tienda en una sola visita (nombre, mover el pin, agregar una foto), y
+  cerrar tras cada guardado individual lo obligaría a reabrir la fila cada vez.
