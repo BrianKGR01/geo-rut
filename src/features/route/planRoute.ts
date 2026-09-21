@@ -68,9 +68,13 @@ export interface OptimizedOrder {
 /**
  * Mejor orden para las tiendas `pending`. Con `origin` se parte de ahí; sin ubicación,
  * la primera tienda del orden actual queda fija como inicio (PRD RF-6).
+ *
+ * Recibe solo `{id, lat, lng}` (no el `Stop` completo de v1) para que también la puedan usar las
+ * pantallas de administrador/chofer de v2, que traen su propio tipo de tienda sin `coordsSource`/
+ * `orderItems` (ver `docs/DECISIONS.md`).
  */
 export async function optimizePendingOrder(
-  pending: Stop[],
+  pending: (LatLng & { id: string })[],
   origin: LatLng | undefined,
   providers: Providers,
 ): Promise<OptimizedOrder> {

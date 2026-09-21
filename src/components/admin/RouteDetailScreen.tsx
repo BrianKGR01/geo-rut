@@ -22,8 +22,22 @@ interface RouteDetailScreenProps {
 }
 
 export function RouteDetailScreen({ route: initialRoute, drivers, catalogStores, currentUserId }: RouteDetailScreenProps) {
-  const { route, busy, error, activate, finish, assignDriver, cancel, addStops, removeStop, reorder, updateStopDetail } =
-    useRouteDetailActions(initialRoute, currentUserId);
+  const {
+    route,
+    busy,
+    error,
+    activate,
+    finish,
+    assignDriver,
+    cancel,
+    addStops,
+    removeStop,
+    reorder,
+    optimize,
+    optimizing,
+    optimizeNotice,
+    updateStopDetail,
+  } = useRouteDetailActions(initialRoute, currentUserId);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [toRemoveStop, setToRemoveStop] = useState<RouteStopDetail | null>(null);
   const [toCancel, setToCancel] = useState(false);
@@ -32,6 +46,7 @@ export function RouteDetailScreen({ route: initialRoute, drivers, catalogStores,
   const driverName = drivers.find((driver) => driver.id === route.driverId)?.name;
   const excludeStoreIds = new Set(route.stops.map((stop) => stop.storeId).filter((id): id is string => Boolean(id)));
   const editingStop = route.stops.find((stop) => stop.id === editingStopId) ?? null;
+  const pendingCount = route.stops.filter((stop) => stop.status === "pending").length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -41,6 +56,7 @@ export function RouteDetailScreen({ route: initialRoute, drivers, catalogStores,
           {error}
         </Banner>
       )}
+      {optimizeNotice && <Banner tone="warn">{optimizeNotice}</Banner>}
       <RouteInfoCard
         route={route}
         drivers={drivers}
@@ -51,11 +67,16 @@ export function RouteDetailScreen({ route: initialRoute, drivers, catalogStores,
         onCancel={() => setToCancel(true)}
       />
       <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-bold uppercase tracking-wide text-soft">Tiendas ({route.stops.length})</h3>
-          <Button variant="secondary" icon="plus" onClick={() => setPickerOpen(true)}>
-            Agregar
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" icon="bolt" disabled={optimizing || pendingCount < 2} onClick={optimize}>
+              {optimizing ? "Optimizando…" : "Optimizar ruta"}
+            </Button>
+            <Button variant="secondary" icon="plus" onClick={() => setPickerOpen(true)}>
+              Agregar
+            </Button>
+          </div>
         </div>
         <RouteStopsEditor
           stops={route.stops}

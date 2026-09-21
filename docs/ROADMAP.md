@@ -220,6 +220,39 @@ de `dev` a `main`.
 > (`claim_rate_limit_attempts`)**, porque en Vercel cada instancia serverless puede tener su propio
 > proceso y el `Map` no se compartía entre ellas. Detalle completo en `docs/DECISIONS.md`.
 
+> **Addendum (2026-09-21, "Optimizar ruta" faltante).** El usuario probó la app ya desplegada y
+> reportó que no había forma de optimizar el orden de una ruta, ni desde el administrador ni desde
+> el chofer — el botón que existía en v1 (TSP real vía OSRM) nunca se volvió a conectar a las
+> pantallas nuevas durante la migración a Supabase (quedó la lógica pura en
+> `features/route/planRoute.ts`/`lib/routing/optimizer.ts`, pero ninguna pantalla de v2 la llamaba).
+> Se corrigió en ambos lados:
+> - **Administrador**: nueva acción `optimize` en `features/routes/useRouteDetailActions.ts` —
+>   pide la ubicación actual (gesto del botón), optimiza solo las tiendas `pending` con
+>   `optimizePendingOrder`/`routingProviders` y reusa el `reorder` ya existente (mismo camino
+>   optimista + `reorderRouteStops`) para persistirlo. Botón "Optimizar ruta" junto a "Agregar" en
+>   `RouteDetailScreen.tsx`.
+> - **Chofer**: hacía falta permiso nuevo — RLS solo dejaba al chofer escribir `status`/`note`/
+>   `arrived_at`/`delivered_at` vía `chofer_update_stop`, nunca `position`. Se agregó una función
+>   `security definer` nueva, `chofer_reorder_stops(p_route_id, p_ordered_ids)` (migración
+>   `v2_chofer_reorder_stops`), con el mismo patrón de `chofer_update_stop` (valida sesión canjeada
+>   + ruta activa) más validación de que la lista recibida sea EXACTAMENTE el conjunto de tiendas no
+>   entregadas de esa ruta (sin duplicados/faltantes/sobrantes) antes de reasignar `position`; las
+>   `delivered` nunca se tocan. Probada con casos positivos y negativos (sesión ajena, ruta ajena,
+>   ids repetidos, lista incompleta) directo contra el proyecto real antes de tocar la UI. Botón
+>   "Optimizar ruta" en `ChoferStopListSheet.tsx` (el arrastre manual se deja deshabilitado a
+>   propósito: el pedido fue específicamente el botón automático).
+> - Se relajó la firma de `optimizePendingOrder` (antes exigía el `Stop` completo de v1) a
+>   `(LatLng & { id: string })[]` para que el tipo de tienda de v2 (que no tiene
+>   `coordsSource`/`orderItems`) se pudiera pasar sin castear.
+> - `npm run check` en verde (238 tests). Verificado en vivo: el flujo del chofer se probó de punta
+>   a punta contra el proyecto real (código `GZKC8B`, `npm run dev` local) — "Optimizar ruta"
+>   recalculó y persistió un orden nuevo, confirmado leyendo `route_stops.position` desde el MCP de
+>   Supabase antes/después. El lado administrador no se pudo probar visualmente en esta sesión
+>   (requiere la contraseña real del admin, que el asistente nunca debe pedir/usar); se validó con
+>   `npm run check`, revisión de código y una revisión adversarial dedicada (sin hallazgos) en vez
+>   de la prueba manual en navegador. Detalle completo (SQL de la función, pruebas de seguridad) en
+>   `docs/DECISIONS.md`.
+
 ## Futuro (no tocar en v2)
 Ver `docs/PLAN_V2.md` §10 (posición GPS del chofer en vivo / Supabase Realtime, vista de
 papelera/auditoría del borrado lógico, log de auditoría genérico) y PRD §10.

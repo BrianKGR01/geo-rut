@@ -882,3 +882,104 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
   chofer no puede canjear ningún código hasta que se active — no es un bug de código, ya estaba
   documentado como paso manual pendiente (ver más arriba, "Fase 1"); confirmado con la captura del
   usuario mostrando el mismo mensaje que ya arma `supabaseSession.ts` para ese caso exacto.
+- **2026-09-21 — Resuelto: "Anonymous Sign-Ins" activado por el usuario en el dashboard.**
+  Reverificado en vivo con una llamada directa a `POST /auth/v1/signup` (sin pasar por la app):
+  antes devolvía `422 anonymous_provider_disabled`, después `200` con una sesión nueva. El chofer ya
+  puede canjear un código real (probado con `GZKC8B`).
+- **2026-09-21 — "Optimizar ruta" faltaba en v2 (ni admin ni chofer) — nueva función RPC
+  `chofer_reorder_stops` para dársela al chofer.** El usuario reportó (con capturas) que el botón
+  de optimizar que existía en v1 no estaba en ningún lado de v2. Investigado: la lógica pura
+  (`optimizePendingOrder`/`optimizeOpenPath`, TSP exacto ≤9 paradas + vecino-más-cercano/2-opt por
+  encima) nunca se tocó durante la migración a Supabase, pero ninguna pantalla de v2 la llamaba —
+  el admin sí tenía reorden MANUAL funcionando (`reorderRouteStops`, drag-and-drop), pero no el
+  cálculo automático; el chofer no tenía ninguno de los dos (`ChoferStopListSheet` traía
+  `onReorder` explícitamente no-op, "el orden lo decide el administrador" — una simplificación de
+  la migración grande que quedó obsoleta en cuanto el usuario pidió que funcionara "de ambas
+  partes").
+
+  Para el chofer hacía falta permiso nuevo: RLS solo le permite escribir
+  `status`/`note`/`arrived_at`/`delivered_at` vía `chofer_update_stop` (§5), nunca `position`. Se
+  agregó, mismo patrón que esa función (`security definer`, revocado de `anon`/`public`, concedido
+  solo a `authenticated`):
+
+  ```sql
+  create or replace function public.chofer_reorder_stops(p_route_id uuid, p_ordered_ids uuid[])
+  returns void
+  language plpgsql
+  security definer
+  set search_path to 'public'
+  as $$
+  declare
+    v_uid uuid := (select auth.uid());
+    v_given_count int := coalesce(cardinality(p_ordered_ids), 0);
+    v_distinct_count int;
+    v_expected_count int;
+    v_matching_count int;
+    v_base_position int;
+  begin
+    if not exists (
+      select 1 from public.routes r
+      where r.id = p_route_id and r.status = 'active' and r.deleted_at is null
+        and exists (
+          select 1 from public.route_driver_sessions rds
+          where rds.route_id = r.id and rds.driver_user_id = v_uid
+        )
+    ) then
+      raise exception 'sin acceso a esta ruta';
+    end if;
+
+    select count(*) into v_distinct_count from (select distinct unnest(p_ordered_ids)) as d;
+    if v_distinct_count <> v_given_count then
+      raise exception 'la lista de tiendas tiene ids repetidos';
+    end if;
+
+    select count(*) into v_expected_count from public.route_stops
+      where route_id = p_route_id and deleted_at is null and status <> 'delivered';
+    select count(*) into v_matching_count from public.route_stops
+      where route_id = p_route_id and deleted_at is null and status <> 'delivered'
+        and id = any(p_ordered_ids);
+    if v_given_count <> v_expected_count or v_matching_count <> v_expected_count then
+      raise exception 'la lista de tiendas no coincide con las pendientes de la ruta';
+    end if;
+
+    select coalesce(max(position), -1) into v_base_position from public.route_stops
+      where route_id = p_route_id and deleted_at is null and not (id = any(p_ordered_ids));
+
+    update public.route_stops rs set position = v_base_position + 1 + gr.rn
+      from (select id, row_number() over () - 1 as rn from unnest(p_ordered_ids) as id) as gr
+      where rs.id = gr.id;
+  end;
+  $$;
+  ```
+
+  Exige que `p_ordered_ids` sea EXACTAMENTE el conjunto de tiendas no borradas y con
+  `status <> 'delivered'` de esa ruta (sin duplicados, sin faltantes, sin sobrantes — cubre tanto
+  `pending` como `delivering`); las `delivered` nunca se tocan y todo lo demás se reordena siempre
+  después de ellas (vía `max(position)` de las que quedan fuera de la lista, no un recálculo de
+  todas las filas). Migración `v2_chofer_reorder_stops`, aplicada directo contra el proyecto real.
+
+  Probado antes de tocar cualquier UI (transacciones con `set local role authenticated` +
+  `request.jwt.claims`, con rollback): reorden válido de las 16 tiendas de una ruta real funcionó;
+  rechazó lista incompleta (`la lista de tiendas no coincide...`), ids duplicados (`...tiene ids
+  repetidos`), sesión de otro usuario y ruta inexistente/no canjeada (`sin acceso a esta ruta`) en
+  los cuatro casos. Grants verificados con `has_function_privilege`: `anon`=false,
+  `authenticated`=true — mismo hallazgo de sesiones anteriores (revocar de `PUBLIC` sola no alcanza,
+  hay que revocar de `anon`/`authenticated`/`public` explícito y volver a conceder solo a
+  `authenticated`). El advisor de seguridad la marca "ejecutable por `authenticated`" — mismo
+  hallazgo intencional que ya tienen `chofer_update_stop`/`has_claimed_route`/`is_active_admin`.
+
+  Se relajó además la firma de `optimizePendingOrder` (`features/route/planRoute.ts`), de exigir el
+  `Stop` completo de v1 (con `coordsSource`/`orderItems`, que las tiendas de v2 no tienen) a
+  `(LatLng & { id: string })[]` — cambio de tipos puro, sin tocar el cuerpo de la función, para que
+  tanto `RouteStopDetail` (admin) como `ChoferStop` (chofer) se pudieran pasar sin castear.
+
+  Construido con dos agentes en paralelo (admin y chofer no comparten ningún archivo) más una
+  revisión final enfocada en los riesgos reales (exclusión correcta de `delivered`, orden final
+  delivered→delivering→pending-optimizado, manejo de error de la RPC, guard de <2 pendientes,
+  permiso de ubicación pedido dentro del gesto del botón) — sin hallazgos. `npm run check` en verde
+  (238 tests, incluye 2 nuevos para `optimizedRouteOrder`). Verificado en vivo el lado chofer
+  (`npm run dev` local contra el proyecto real, código `GZKC8B`): "Optimizar ruta" recalculó y
+  persistió un orden nuevo, confirmado leyendo `route_stops.position` desde el MCP de Supabase antes
+  y después del click. El lado administrador no se pudo probar visualmente en esta sesión porque
+  requiere la contraseña real del admin (que este asistente nunca debe pedir ni usar); se validó con
+  `npm run check`, lectura directa del diff y la revisión adversarial dedicada.

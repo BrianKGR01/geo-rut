@@ -40,6 +40,20 @@ async function callChoferUpdateStop(supabase: SupabaseDb, routeStopId: string, p
 }
 
 /**
+ * RPC que reordena las tiendas no entregadas de la ruta (RF-6, chofer). A diferencia del resto de
+ * las escrituras de este archivo, no pasa por la cola de reintentos: es una acción puntual que
+ * dispara `useChoferRoute.optimizeStops` desde un toque del chofer, así que ante un fallo alcanza
+ * con mostrar un error y dejar que vuelva a tocar el botón.
+ */
+export async function reorderChoferStops(supabase: SupabaseDb, routeId: string, orderedIds: string[]): Promise<void> {
+  const { error } = await supabase.rpc("chofer_reorder_stops", {
+    p_route_id: routeId,
+    p_ordered_ids: orderedIds,
+  });
+  if (error) throw error;
+}
+
+/**
  * Distingue un fallo transitorio (sin señal, se sigue reintentando) de uno permanente (el chofer ya
  * no tiene acceso a esta ruta: el admin la finalizó/canceló mientras la escritura estaba encolada).
  * No hay un código de error propio que reconocer acá (a diferencia del tope de fotos, que sí lo

@@ -410,6 +410,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      chofer_reorder_stops: {
+        Args: { p_ordered_ids: string[]; p_route_id: string }
+        Returns: undefined
+      }
       chofer_update_stop: {
         Args: {
           p_arrived_at?: string

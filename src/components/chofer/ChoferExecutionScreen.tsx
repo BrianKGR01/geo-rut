@@ -61,6 +61,9 @@ export function ChoferExecutionScreen({ routeId, onLostAccess }: ChoferExecution
     setNote,
     undoStop,
     uploadPhoto,
+    optimizing,
+    optimizeError,
+    optimizeStops,
   } = hook;
   const next = view.next;
   const leg = next ? legs.get(next.id) : undefined;
@@ -148,11 +151,14 @@ export function ChoferExecutionScreen({ routeId, onLostAccess }: ChoferExecution
           remaining={view.remaining}
           nextId={next?.id}
           legsCache={legsCache}
+          optimizing={optimizing}
+          optimizeError={optimizeError}
           onClose={() => setListOpen(false)}
           onOpenStop={(id) => {
             setListOpen(false);
             setDetailStopId(id);
           }}
+          onOptimize={() => void optimizeStops()}
         />
       )}
       {detailStop && (
