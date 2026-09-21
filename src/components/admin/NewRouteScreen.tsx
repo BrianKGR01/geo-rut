@@ -81,6 +81,12 @@ export function NewRouteScreen({ drivers: initialDrivers, catalogStores, current
           </Button>
         </div>
         {stagedStores.length === 0 && <p className="text-sm text-soft">Todavía no agregaste tiendas.</p>}
+        {stagedStores.length > 0 && (
+          <p className="text-sm text-soft">
+            El pedido de cada tienda (monto, partidas y fotos) se carga después de crear la ruta, tocando cada
+            tienda desde su detalle.
+          </p>
+        )}
         <ul className="flex flex-col gap-2">
           {stagedStores.map((store, index) => (
             <li
