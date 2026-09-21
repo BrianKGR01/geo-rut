@@ -79,7 +79,19 @@ export function useChoferRoute(routeId: string) {
         : current,
     );
   }, []);
-  const { retrying, persistStopWrite, uploadPhoto: queueUploadPhoto } = useChoferWriteQueue(supabase, handlePhotoSynced);
+  const handleAccessLost = useCallback(() => {
+    // Mismo destino que `load()` cuando la ruta ya no se puede leer: la pantalla de "ya no tienes
+    // acceso" (no hace falta esperar a que el chofer recargue para verla).
+    setData(null);
+    setStatus("not-found");
+  }, []);
+  const {
+    retrying,
+    droppedPhotoMessage,
+    dismissDroppedPhotoMessage,
+    persistStopWrite,
+    uploadPhoto: queueUploadPhoto,
+  } = useChoferWriteQueue(supabase, routeId, handlePhotoSynced, handleAccessLost);
 
   /**
    * Valida la transición con el reductor de v1 y, si es válida, aplica el cambio de forma
@@ -168,6 +180,8 @@ export function useChoferRoute(routeId: string) {
     status,
     view,
     retrying,
+    droppedPhotoMessage,
+    dismissDroppedPhotoMessage,
     legsCache,
     startPoint,
     calculating,

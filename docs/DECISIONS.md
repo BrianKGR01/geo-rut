@@ -692,3 +692,73 @@ optimizar"); no se tocaron en esta pasada, que se centró en el agujero real de 
   entorno requeridas —nombres, no valores—, límites conocidos), sin repetir el detalle de
   `docs/PLAN_V2.md`. La sección "Arquitectura" se actualizó con las carpetas nuevas (`features/route`
   vs `features/routes`, `lib/supabase`, `lib/http`).
+
+### Correcciones de una revisión de código (v2)
+
+- **2026-09-21 — `useChoferWriteQueue.flush()` ya no traga en silencio un rechazo permanente.**
+  Bug encontrado por revisión: el `catch {}` vacío del bucle de reintentos (tanto para
+  `chofer_update_stop` encolado como para fotos encoladas) no distinguía un corte de señal
+  (transitorio, sigue en la cola) de un rechazo que ningún reintento va a arreglar — el tope de 3
+  fotos, o que el administrador haya finalizado/cancelado la ruta mientras algo quedó encolado. El
+  chofer nunca se enteraba y el banner "reintentando…" quedaba mostrándose para siempre. Corrección:
+  el tope de fotos ya tenía una forma de reconocerse (`PHOTO_LIMIT_MESSAGE`, comparando el mensaje
+  del `Error` que lanza `insertRouteStopImage`); para la pérdida de acceso a la ruta no hay un código
+  de error propio que revisar, así que se reusa la misma señal que ya usa `useChoferRoute` para
+  decidir "not-found": releer la ruta con `getRoute` (RLS) y ver si sigue devolviendo algo. Si no,
+  se descarta todo lo encolado (reintentar no cambiaría el resultado) y se avisa vía un callback
+  nuevo (`onAccessLost`) que lleva al chofer a la misma pantalla "Ya no tienes acceso a esta ruta"
+  que ya existía para cuando la detección ocurre al recargar. Una foto encolada descartada por tope
+  se avisa con un banner nuevo (`droppedPhotoMessage`, dismisseable) porque no hay a quién devolverle
+  el error del `handleFile` original (ya terminó hace rato).
+- **2026-09-21 — Dos hallazgos de la misma revisión quedaron SIN corregir en esta pasada porque su
+  arreglo requiere modificar el proyecto de Supabase en vivo (`wwvretfzbjxdtxqtuvij`) y esa acción
+  fue bloqueada por el sistema de permisos del entorno de trabajo (clasificador de "Modify Shared
+  Resources"; no es una limitación del código, es una restricción de la sesión que hizo la
+  corrección). Quedan anotados acá con el arreglo exacto para aplicarlos a mano o en una sesión con
+  permiso:**
+  1. **RLS de `storage.objects` para el chofer (bucket `pedidos`) sigue rota.** Mismo agujero que se
+     corrigió en `routes`/`route_stops`/`route_stop_items`/`route_stop_images` (arriba, "agujero real
+     de RLS"), pero nunca se aplicó a Storage: las políticas `pedidos driver select` y
+     `pedidos driver insert` hacen `EXISTS`/`JOIN` directo contra `route_driver_sessions` (RLS
+     habilitada sin políticas → siempre 0 filas para `authenticated`), en vez de usar
+     `has_claimed_route()`. Mientras no se corrija, un chofer real no puede ver ni subir ninguna
+     foto. Arreglo verificado leyendo las políticas actuales del proyecto real (no aplicado):
+     ```sql
+     alter policy "pedidos driver select" on storage.objects
+       using (
+         bucket_id = 'pedidos'
+         and exists (
+           select 1 from public.routes r
+           where r.id::text = (storage.foldername(objects.name))[1]
+             and r.status = 'active'
+             and r.deleted_at is null
+             and public.has_claimed_route(r.id)
+         )
+       );
+
+     alter policy "pedidos driver insert" on storage.objects
+       with check (
+         bucket_id = 'pedidos'
+         and exists (
+           select 1 from public.routes r
+           where r.id::text = (storage.foldername(objects.name))[1]
+             and r.status = 'active'
+             and r.deleted_at is null
+             and public.has_claimed_route(r.id)
+         )
+       );
+     ```
+  2. **`lib/http/claimRateLimit.ts` sigue siendo un `Map` en memoria por instancia.** En Vercel cada
+     invocación serverless puede arrancar con su propio `Map` vacío, así que el tope de 10
+     intentos/10 min por IP no frena a alguien que reparte sus intentos entre varias invocaciones
+     concurrentes. Un arreglo de verdad necesita un contador compartido entre instancias — con la
+     app ya corriendo sobre Supabase, lo coherente es una tabla nueva (con RLS que deniegue todo salvo
+     al `service role`, ya que solo la lee/escribe `createAdminClient()` desde el endpoint) en vez de
+     sumar un servicio de pago nuevo (prohibido por `AGENTS.md`). No se implementó el cambio de código
+     porque haría que `POST /api/routes/claim` dependa de una tabla que todavía no existe en el
+     proyecto real: sin poder aplicar la migración en esta sesión, subir ese cambio habría dejado el
+     canje de código roto en producción, peor que el estado actual (que sigue frenando al menos los
+     intentos que caen en la misma instancia tibia). Queda pendiente para una sesión con permiso de
+     escribir en la base: crear la tabla, migrar `claimRateLimit.ts` a leer/escribir ahí vía el
+     cliente admin, y solo entonces volver async `isRateLimited`/`registerFailedAttempt` (y su uso en
+     `src/app/api/routes/claim/route.ts`).

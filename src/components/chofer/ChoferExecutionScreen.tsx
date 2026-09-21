@@ -47,7 +47,21 @@ export function ChoferExecutionScreen({ routeId, onLostAccess }: ChoferExecution
     );
   }
 
-  const { view, legsCache, startPoint, retrying, askStopId, dismissAsk, markArrived, markDelivered, setNote, undoStop, uploadPhoto } = hook;
+  const {
+    view,
+    legsCache,
+    startPoint,
+    retrying,
+    droppedPhotoMessage,
+    dismissDroppedPhotoMessage,
+    askStopId,
+    dismissAsk,
+    markArrived,
+    markDelivered,
+    setNote,
+    undoStop,
+    uploadPhoto,
+  } = hook;
   const next = view.next;
   const leg = next ? legs.get(next.id) : undefined;
   const done = view.delivered.length;
@@ -85,6 +99,19 @@ export function ChoferExecutionScreen({ routeId, onLostAccess }: ChoferExecution
         {retrying && (
           <Banner tone="warn" role="status">
             No se pudo guardar todo todavía. Reintentando en cuanto vuelva la conexión…
+          </Banner>
+        )}
+        {droppedPhotoMessage && (
+          <Banner
+            tone="danger"
+            role="alert"
+            action={
+              <Button variant="secondary" onClick={dismissDroppedPhotoMessage} className="shrink-0">
+                Ok
+              </Button>
+            }
+          >
+            {droppedPhotoMessage}
           </Banner>
         )}
         {legsCache?.approximate && <p className="text-sm font-semibold text-warn">Ruta aproximada (sin conexión al servicio de rutas).</p>}

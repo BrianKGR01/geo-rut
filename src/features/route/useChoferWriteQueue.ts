@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getRoute } from "@/features/routes/api";
 import {
   PHOTO_LIMIT_MESSAGE,
   uploadRouteStopImage,
@@ -39,6 +40,23 @@ async function callChoferUpdateStop(supabase: SupabaseDb, routeStopId: string, p
 }
 
 /**
+ * Distingue un fallo transitorio (sin señal, se sigue reintentando) de uno permanente (el chofer ya
+ * no tiene acceso a esta ruta: el admin la finalizó/canceló mientras la escritura estaba encolada).
+ * No hay un código de error propio que reconocer acá (a diferencia del tope de fotos, que sí lo
+ * tiene vía `isPhotoLimitError`): se reusa la misma señal que ya usa `useChoferRoute` para decidir
+ * "not-found" — releer la ruta con RLS y ver si sigue devolviendo algo.
+ */
+async function isRouteStillAccessible(supabase: SupabaseDb, routeId: string): Promise<boolean> {
+  try {
+    return (await getRoute(supabase, routeId)) !== null;
+  } catch {
+    // No se pudo confirmar (p. ej. seguimos sin señal): se asume que sigue accesible para no
+    // descartar una escritura encolada por un corte transitorio.
+    return true;
+  }
+}
+
+/**
  * Absorbe cortes de señal durante la ejecución de una ruta (`docs/PLAN_V2.md` §9): cada escritura
  * del chofer (llegada/entrega/observación vía `chofer_update_stop`, foto del pedido) se reintenta
  * unas pocas veces con backoff corto (`retryWithBackoff`) y, si sigue sin poder, queda en una cola
@@ -47,16 +65,32 @@ async function callChoferUpdateStop(supabase: SupabaseDb, routeStopId: string, p
  * de estado se persisten en `localStorage` (`pendingStopWrites.ts`, sobreviven a un recargo); las
  * fotos quedan solo en memoria de esta pestaña (un `File` no se puede volcar ahí sin re-trabajo), y
  * se pierden si se cierra la pestaña antes de reconectar — límite documentado en `docs/DECISIONS.md`.
+ * Un rechazo permanente (no un corte de señal) nunca queda reintentando para siempre: el tope de 3
+ * fotos se descarta y se avisa (`droppedPhotoMessage`), y la pérdida de acceso a la ruta (el admin
+ * la finalizó/canceló mientras había algo encolado) descarta todo lo pendiente y avisa vía
+ * `onAccessLost`, que `useChoferRoute` usa para llevar al chofer a la misma pantalla de "ya no
+ * tienes acceso" que ve si recarga.
  */
-export function useChoferWriteQueue(supabase: SupabaseDb, onPhotoSynced: (stopId: string, image: RouteStopImage) => void) {
+export function useChoferWriteQueue(
+  supabase: SupabaseDb,
+  routeId: string,
+  onPhotoSynced: (stopId: string, image: RouteStopImage) => void,
+  onAccessLost: () => void,
+) {
   const [retrying, setRetrying] = useState(false);
+  // Una foto encolada offline que terminó rechazada para siempre (tope de 3 ya alcanzado por otra
+  // subida mientras tanto): no hay a quién devolverle el error (el `handleFile` que la disparó ya
+  // terminó hace rato), así que se avisa acá para no fallar en silencio.
+  const [droppedPhotoMessage, setDroppedPhotoMessage] = useState<string>();
   const photoQueueRef = useRef<QueuedPhoto[]>([]);
   const flushingRef = useRef(false);
   const onPhotoSyncedRef = useRef(onPhotoSynced);
+  const onAccessLostRef = useRef(onAccessLost);
 
-  // Última versión del callback para no tener que resuscribir `flush` en cada render de quien la usa.
+  // Última versión de los callbacks para no tener que resuscribir `flush` en cada render de quien la usa.
   useEffect(() => {
     onPhotoSyncedRef.current = onPhotoSynced;
+    onAccessLostRef.current = onAccessLost;
   });
 
   const refreshRetrying = useCallback(() => {
@@ -67,12 +101,29 @@ export function useChoferWriteQueue(supabase: SupabaseDb, onPhotoSynced: (stopId
     if (flushingRef.current) return;
     flushingRef.current = true;
     try {
+      // Se confirma como mucho una vez por pasada (todo lo encolado es de la misma ruta): si ya se
+      // supo que se perdió el acceso, no hace falta releer la ruta de nuevo por cada ítem que falle.
+      let accessChecked = false;
+      let accessLost = false;
+      const isPermanentFailure = async () => {
+        if (!accessChecked) {
+          accessChecked = true;
+          accessLost = !(await isRouteStillAccessible(supabase, routeId));
+        }
+        return accessLost;
+      };
+
       for (const write of loadPendingStopWrites()) {
         try {
           await callChoferUpdateStop(supabase, write.routeStopId, write);
           removeStopWrite(write.id);
         } catch {
-          // Sigue en la cola: se reintenta en el próximo disparo (online / pestaña visible).
+          if (await isPermanentFailure()) {
+            // Rechazo permanente (ya no hay acceso a la ruta): reintentar para siempre no lo va a
+            // arreglar, así que se descarta y se avisa (ver `onAccessLost` más abajo).
+            removeStopWrite(write.id);
+          }
+          // Si no, sigue en la cola: se reintenta en el próximo disparo (online / pestaña visible).
         }
       }
       for (const queued of photoQueueRef.current) {
@@ -80,15 +131,24 @@ export function useChoferWriteQueue(supabase: SupabaseDb, onPhotoSynced: (stopId
           const image = await uploadRouteStopImage(supabase, queued.input);
           photoQueueRef.current = photoQueueRef.current.filter((item) => item.id !== queued.id);
           onPhotoSyncedRef.current(queued.input.routeStopId, image);
-        } catch {
-          // Ídem, queda en memoria para el próximo disparo.
+        } catch (error) {
+          const isPhotoLimit = error instanceof Error && error.message === PHOTO_LIMIT_MESSAGE;
+          if (isPhotoLimit || (await isPermanentFailure())) {
+            // Tope de 3 fotos ya alcanzado, o ruta ya sin acceso: ninguno de los dos se arregla
+            // reintentando, así que se descarta. Si fue el tope, se avisa (la ruta ya sin acceso se
+            // avisa aparte, vía `onAccessLost`, y cubre este caso también).
+            photoQueueRef.current = photoQueueRef.current.filter((item) => item.id !== queued.id);
+            if (isPhotoLimit) setDroppedPhotoMessage(PHOTO_LIMIT_MESSAGE);
+          }
+          // Ídem, si es transitorio queda en memoria para el próximo disparo.
         }
       }
+      if (accessLost) onAccessLostRef.current();
     } finally {
       flushingRef.current = false;
       refreshRetrying();
     }
-  }, [supabase, refreshRetrying]);
+  }, [supabase, routeId, refreshRetrying]);
 
   useEffect(() => {
     // Reintento al montar (por si quedó algo pendiente de una sesión anterior en este navegador) y
@@ -135,5 +195,7 @@ export function useChoferWriteQueue(supabase: SupabaseDb, onPhotoSynced: (stopId
     [supabase, refreshRetrying],
   );
 
-  return { retrying, persistStopWrite, uploadPhoto };
+  const dismissDroppedPhotoMessage = useCallback(() => setDroppedPhotoMessage(undefined), []);
+
+  return { retrying, droppedPhotoMessage, dismissDroppedPhotoMessage, persistStopWrite, uploadPhoto };
 }
