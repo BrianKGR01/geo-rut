@@ -34,6 +34,16 @@ export function addStop(data: AppData, stop: Stop): AppData {
   };
 }
 
+/** Alta de varias tiendas de una vez (importación en lote); todas van al final del orden. */
+export function addStops(data: AppData, stops: Stop[]): AppData {
+  if (stops.length === 0) return data;
+  return {
+    ...data,
+    stops: [...data.stops, ...stops],
+    route: { ...data.route, stopOrder: [...data.route.stopOrder, ...stops.map((stop) => stop.id)] },
+  };
+}
+
 export function updateStop(data: AppData, id: string, patch: StopPatch): AppData {
   return {
     ...data,

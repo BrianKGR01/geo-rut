@@ -111,6 +111,16 @@ El parser es una función pura separada del handler.
 - Visible en la tarjeta de entrega en estado `delivering` como checklist informativo.
 - Total de ítems visible en la lista de planificación.
 
+### RF-9 Importar / exportar tiendas en lote (texto plano)
+- Cuadro de texto para pegar varias tiendas de una vez (o llevarse la ruta a otro lugar), sin depender de un servicio externo.
+- Formato: bloques separados por una o más líneas en blanco. Dentro de cada bloque, una línea es el nombre y otra la ubicación (link de Google Maps `http`/`https`, o coordenadas en texto plano `lat, lng`); el orden entre esas dos líneas no importa.
+- Al importar: cada bloque reconocido propone una tienda (el link se resuelve como en RF-2 —primero local, luego con el mismo backend de RF-2 si hace falta—; las coordenadas en texto plano se usan directo). Un bloque sin línea de ubicación reconocible se reporta como error accionable ("No encontré un link ni coordenadas.") sin bloquear el resto del texto. Los bloques se resuelven de a uno (nunca en paralelo), para no saturar Nominatim/Google.
+- Duplicados: una tienda propuesta a menos de `DUPLICATE_RADIUS_M` (10 m) de una ya guardada, o de otra tienda ya aceptada del mismo lote, se marca como duplicada y no se agrega.
+- Límite de `MAX_BULK_ITEMS` (100) bloques por importación; el excedente se recorta y se avisa (`truncated`).
+- Al exportar: genera el mismo formato en el orden de visita actual, con `https://www.google.com/maps?q=LAT,LNG` de las coordenadas ya guardadas (no el link original), así el texto exportado siempre es reimportable sin red.
+- Lógica pura en `features/stops/bulkText.ts` (`parseBulkText`, `serializeStops`) y `features/stops/importStops.ts` (`importBulkText`, resolución + deduplicación).
+- Pantalla: hoja "Importar / exportar tiendas" (`BulkTransferSheet`, con pestañas), accesible desde un botón junto a "Agregar tienda" en la planificación. Importar: pegar texto o elegir un archivo `.txt` (el archivo solo rellena el cuadro de texto, que se puede seguir editando antes de revisar), revisar la vista previa (una fila por bloque con su estado en español: ubicación exacta, aproximada, duplicada u error) y confirmar el alta de las tiendas válidas. Exportar: texto de solo lectura con la ruta actual, y copiar / descargar `.txt` / compartir (si el navegador lo soporta).
+
 ## 7. Requisitos no funcionales
 - Mobile-first 360–430 px; sin scroll horizontal; objetivos táctiles ≥ 44 px; legible al sol (alto contraste).
 - Carga inicial liviana: el mapa se carga de forma diferida.

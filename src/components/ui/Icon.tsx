@@ -46,6 +46,7 @@ const PATHS = {
   expand: <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" />,
   clipboard: <path d="M9 2h6v4H9V2Zm7 2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />,
   refresh: <path d="M3 12a9 9 0 0 1 15-6.7L21 8m0-5v5h-5m5 4a9 9 0 0 1-15 6.7L3 16m0 5v-5h5" />,
+  transfer: <path d="M7 3v14m0 0-3-3m3 3 3-3M17 21V7m0 0 3 3m-3-3-3 3" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

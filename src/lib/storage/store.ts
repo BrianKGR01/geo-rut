@@ -5,6 +5,7 @@ import { applyOptimizedOrder, reorderManually } from "@/features/route/orderOps"
 import { chooseFixedStart, chooseGpsStart, freshRoute } from "@/features/route/startPoint";
 import {
   addStop as addStopOp,
+  addStops as addStopsOp,
   createStop,
   removeStop as removeStopOp,
   updateStop as updateStopOp,
@@ -21,6 +22,8 @@ export const BACKUP_KEY = "rutatiendas-backup";
 
 export interface AppActions {
   addStop: (input: NewStopInput) => string;
+  /** Alta de varias tiendas en un solo set (importación en lote). Devuelve los ids creados. */
+  addStops: (inputs: NewStopInput[]) => string[];
   updateStop: (id: string, patch: StopPatch) => void;
   removeStop: (id: string) => void;
   /** Reorden manual de las tiendas no entregadas. */
@@ -97,6 +100,12 @@ export function createAppStore(storage: StateStorage = browserStorage()) {
             const stop = createStop(input, newId(), new Date().toISOString());
             set((state) => settleRoute(addStopOp(state, stop), now()));
             return stop.id;
+          },
+          addStops: (inputs) => {
+            const ts = new Date().toISOString();
+            const created = inputs.map((input) => createStop(input, newId(), ts));
+            set((state) => settleRoute(addStopsOp(state, created), ts));
+            return created.map((stop) => stop.id);
           },
           updateStop: (id, patch) => set((state) => updateStopOp(state, id, patch)),
           removeStop: (id) => set((state) => settleRoute(removeStopOp(state, id), now())),

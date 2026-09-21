@@ -19,12 +19,13 @@ interface PlanScreenProps {
   onAddStop: () => void;
   onOpenStop: (id: string) => void;
   onChangeStart: () => void;
+  onOpenBulk: () => void;
   /** Acción primaria de la pantalla (p. ej. "Iniciar ruta"). */
   primaryAction?: ReactNode;
 }
 
 export function PlanScreen(props: PlanScreenProps) {
-  const { calculating, onAddStop, onOpenStop, onChangeStart, primaryAction } = props;
+  const { calculating, onAddStop, onOpenStop, onChangeStart, onOpenBulk, primaryAction } = props;
   const view = useRouteView();
   const reorderStops = useAppStore((state) => state.reorderStops);
   const { optimize, optimizing, notice } = useOptimizeRoute();
@@ -105,12 +106,19 @@ export function PlanScreen(props: PlanScreenProps) {
           >
             Agregar tienda
           </Button>
-          {pendingCount >= 2 && (
-            <Button variant="secondary" icon="bolt" className="flex-1" onClick={optimize} disabled={optimizing}>
-              {optimizing ? "Optimizando…" : "Optimizar"}
-            </Button>
-          )}
+          <Button
+            variant="secondary"
+            icon="transfer"
+            className="w-12 shrink-0"
+            aria-label="Importar o exportar tiendas"
+            onClick={onOpenBulk}
+          />
         </div>
+        {pendingCount >= 2 && (
+          <Button variant="secondary" icon="bolt" onClick={optimize} disabled={optimizing}>
+            {optimizing ? "Optimizando…" : "Optimizar"}
+          </Button>
+        )}
       </footer>
     </div>
   );

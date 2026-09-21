@@ -11,6 +11,7 @@ import { RouteSummary } from "./route/RouteSummary";
 import { StartPointSheet } from "./route/StartPointSheet";
 import { StartRouteButton } from "./route/StartRouteButton";
 import { AddStopSheet } from "./stops/AddStopSheet";
+import { BulkTransferSheet } from "./stops/BulkTransferSheet";
 import { StopDeliveryActions } from "./stops/StopDeliveryActions";
 import { StopDetailSheet } from "./stops/StopDetailSheet";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -19,7 +20,7 @@ import { ThemeToggle } from "./ui/ThemeToggle";
 import { useApplyTheme } from "./ui/useApplyTheme";
 import { useHasMounted } from "./ui/useHasMounted";
 
-type Overlay = { kind: "add" } | { kind: "start" } | { kind: "detail"; id: string } | null;
+type Overlay = { kind: "add" } | { kind: "start" } | { kind: "bulk" } | { kind: "detail"; id: string } | null;
 
 export function AppShell() {
   const mounted = useHasMounted();
@@ -37,6 +38,7 @@ export function AppShell() {
   const hasPending = stops.some((stop) => stop.status !== "delivered");
   const openAdd = () => setOverlay({ kind: "add" });
   const openStart = () => setOverlay({ kind: "start" });
+  const openBulk = () => setOverlay({ kind: "bulk" });
   const openStop = (id: string) => setOverlay(id === START_MARKER_ID ? { kind: "start" } : { kind: "detail", id });
   const closeOverlay = () => setOverlay(null);
 
@@ -76,6 +78,7 @@ export function AppShell() {
             onAddStop={openAdd}
             onOpenStop={openStop}
             onChangeStart={openStart}
+            onOpenBulk={openBulk}
             primaryAction={hasPending ? <StartRouteButton /> : undefined}
           />
         )}
@@ -95,12 +98,14 @@ export function AppShell() {
               onAddStop={openAdd}
               onOpenStop={openStop}
               onChangeStart={openStart}
+              onOpenBulk={openBulk}
             />
           </div>
         </Sheet>
       )}
       {overlay?.kind === "add" && <AddStopSheet onClose={closeOverlay} />}
       {overlay?.kind === "start" && <StartPointSheet onClose={closeOverlay} />}
+      {overlay?.kind === "bulk" && <BulkTransferSheet onClose={closeOverlay} />}
       {detailStop && (
         <StopDetailSheet
           key={detailStop.id}

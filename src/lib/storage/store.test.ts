@@ -40,6 +40,14 @@ describe("store persistente", () => {
     expect(second.getState().stops.map((stop) => stop.id)).toEqual([id]);
   });
 
+  it("agrega varias tiendas de una vez y quedan todas en el orden (importación en lote)", () => {
+    const store = createAppStore(fakeStorage());
+    const ids = store.getState().addStops([input, { ...input, name: "Tienda B" }]);
+    expect(ids).toHaveLength(2);
+    expect(store.getState().route.stopOrder).toEqual(ids);
+    expect(store.getState().stops.map((stop) => stop.name)).toEqual(["Bodega Ana", "Tienda B"]);
+  });
+
   it("eliminar una tienda la quita también del orden", () => {
     const store = createAppStore(fakeStorage());
     const a = store.getState().addStop(input);
