@@ -22,11 +22,29 @@ de `dev` a `main`.
 > **Nota de cierre (2026-09-21).** Hecho: esquema completo (8 tablas, RLS, trigger de tope de fotos, función `chofer_update_stop`, bucket `pedidos` con sus políticas) aplicado y verificado contra los advisors de seguridad y rendimiento del propio proyecto (ver `docs/DECISIONS.md` — Fase 1); ambos quedaron limpios salvo hallazgos intencionales/documentados. Primer admin (`brayankgr@gmail.com`) invitado y con fila en `admins`. Pendiente, no bloquea seguir: instalar `@supabase/ssr`/`supabase-js` en el proyecto (se hace al empezar la Fase 2, que es donde se usan por primera vez) y activar "Leaked Password Protection" en el dashboard de Supabase (configuración de Auth, no de esquema). Probar a mano: no aplica todavía (sin UI); se puede confirmar el esquema con `list_tables`/`get_advisors` desde el MCP de Supabase.
 
 ## Fase 2 — Login de administrador
-- [ ] Clientes de Supabase para navegador y servidor (`lib/supabase/client.ts`, `lib/supabase/server.ts`) + middleware de Next para refrescar la cookie de sesión
-- [ ] Pantalla de login de administrador (email + contraseña)
-- [ ] Protección de las rutas/pantallas de administrador (redirige a login si no hay sesión o el usuario no está en `admins` activo)
-- [ ] Cerrar sesión
+- [x] Clientes de Supabase para navegador y servidor (`lib/supabase/client.ts`, `lib/supabase/server.ts`) + proxy de Next para refrescar la cookie de sesión
+- [x] Pantalla de login de administrador (email + contraseña)
+- [x] Protección de las rutas/pantallas de administrador (redirige a login si no hay sesión o el usuario no está en `admins` activo)
+- [x] Cerrar sesión
 **Hecho cuando:** un administrador entra con su email/contraseña real, queda logueado entre recargas (cookie), y una cuenta que no está en `admins` (o fue dada de baja) no puede pasar.
+
+> **Nota de cierre (2026-09-21).** Hecho: `@supabase/ssr` 0.12.7 + `@supabase/supabase-js` 2.116.0
+> instalados (versiones vigentes verificadas con `npm view`); `lib/supabase/client.ts`
+> (`createBrowserClient`) y `lib/supabase/server.ts` (`createServerClient`, cookies de
+> `next/headers` async); `src/proxy.ts` (Next 16 renombró `middleware.ts` a `proxy.ts`, ver
+> `docs/DECISIONS.md`) que refresca la sesión y redirige a `/admin/login` en `/admin/:path*` si no
+> hay JWT válido; `src/app/admin/login/page.tsx` (formulario con `TextField`/`Button`/`Banner`,
+> validado con Zod, mensajes de error en español); `src/app/admin/(dashboard)/layout.tsx`
+> (Server Component: exige sesión no anónima + fila activa en `admins`, cabecera con "Cerrar
+> sesión"); `src/app/admin/(dashboard)/page.tsx` mínima. Probado a mano contra el proyecto real de
+> Supabase: `/admin` sin sesión redirige a `/admin/login`; login con contraseña incorrecta muestra
+> "El email o la contraseña no son correctos."; `npm run check` en verde (175 tests). Pendiente,
+> no bloquea seguir: probar el login con la contraseña real de `brayankgr@gmail.com` (no la tengo,
+> la pone el usuario) y el flujo completo de "Cerrar sesión". Cómo probarlo a mano: `npm run dev`,
+> abrir `/admin` (redirige a login), entrar con el email/contraseña reales del primer admin, ver
+> "Bienvenido, administrador" y el botón "Cerrar sesión" en la cabecera; recargar la página no debe
+> pedir login de nuevo (cookie); "Cerrar sesión" vuelve a `/admin/login` y ya no dejar entrar a
+> `/admin` sin volver a loguearse.
 
 ## Fase 3 — Administradores, choferes, catálogo de tiendas y rutas en Supabase
 - [ ] Reemplazar la fuente de datos de `stops`/`route` (hoy `localStorage` vía Zustand) por Supabase, manteniendo el contrato de las funciones que ya usan los componentes donde sea posible (`addStop`, `reorderStops`, etc.)

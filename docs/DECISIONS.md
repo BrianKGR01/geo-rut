@@ -145,3 +145,42 @@ Formato: fecha — decisión — motivo.
 - **2026-09-21 — Políticas de escritura separadas de una única política de lectura combinada (admin OR chofer)**, en vez de una política `for all` del admin más una de solo-lectura del chofer superpuestas: el advisor de rendimiento marca como innecesario evaluar dos políticas permisivas para el mismo rol/acción cuando alcanza con una que las combine con `or`.
 - **2026-09-21 — Índices agregados solo para `routes.driver_id` y `route_stops.store_id`** (los que de verdad se van a consultar); no se indexó cada columna de auditoría (`created_by`/`deleted_by`/`invited_by`/`uploaded_by`) que el advisor también señaló, seguiendo "medir antes de optimizar" de `docs/BUENAS_PRACTICAS.md` — se agregan más adelante si hace falta.
 - **2026-09-21 — Pendiente para el usuario, no es un cambio de esquema:** activar "Leaked Password Protection" en el dashboard de Supabase (Authentication → Providers → Email) — el advisor de seguridad lo marca, pero es una configuración de Auth del proyecto, no algo que se aplique con una migración.
+
+## Fase 2 — Login de administrador
+
+- **2026-09-21 — `@supabase/ssr` 0.12.7 y `@supabase/supabase-js` 2.116.0** (versión estable vigente
+  al momento de instalar, verificado con `npm view <paquete> version`, no de memoria).
+- **2026-09-21 — `middleware.ts` no existe en Next 16: se usa `src/proxy.ts`.** Verificado en la
+  documentación empaquetada del propio Next instalado
+  (`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`): "Next.js
+  16.0.0 — Middleware is deprecated and renamed to Proxy" (mismo comportamiento, cambia el nombre
+  del archivo y de la función exportada, de `middleware` a `proxy`). El archivo vive en `src/`,
+  al mismo nivel que `app/`, como indica la guía.
+- **2026-09-21 — El proxy solo corre sobre `/admin/:path*`** (`matcher`), no sobre todo el sitio.
+  La app del chofer sigue siendo pública (resto de rutas) y no necesita tocar Supabase en cada
+  request; evita además el costo de crear un cliente y validar el JWT en cada `GET` de la app
+  actual (mapa, tiles, etc.).
+- **2026-09-21 — El proxy usa `getClaims()`, no `getSession()`/`getUser()`.** Es lo que recomienda
+  la guía vigente de Supabase (`guides/auth/server-side/creating-a-client`, sección Next.js):
+  `getSession()` no revalida el JWT del lado del servidor y `getClaims()` sí (contra el JWKS del
+  proyecto, con caché), además de ser el punto donde se refresca el token si venció.
+- **2026-09-21 — División de responsabilidades entre el proxy y `admin/(dashboard)/layout.tsx`:**
+  el proxy solo confirma que hay una sesión válida (JWT), sin tocar la base de datos, porque corre
+  en cada request dentro de `/admin/*` (incluye prefetches); el chequeo más caro —¿esa sesión es de
+  un administrador activo en la tabla `admins`, y no de una sesión anónima?— vive en el layout
+  (Server Component), que solo corre una vez por navegación real.
+- **2026-09-21 — `src/app/admin/(dashboard)/` como grupo de rutas.** Bug real encontrado probando a
+  mano: con `admin/layout.tsx` envolviendo *todo* `/admin/*` (incluida `/admin/login`), un visitante
+  sin sesión en `/admin/login` disparaba el `redirect("/admin/login")` del propio layout contra sí
+  mismo → bucle infinito de redirecciones (confirmado con `curl -I`, decenas de `307` seguidos). Se
+  resolvió moviendo el layout protegido y `admin/page.tsx` a un grupo de rutas `(dashboard)` (no
+  cambia la URL, sigue siendo `/admin`), dejando `admin/login/page.tsx` como hermano fuera de ese
+  layout.
+- **2026-09-21 — Validación del formulario de login con Zod** (`z.object({ email, password })`,
+  con `.email()`) antes de llamar a `signInWithPassword`, seguido de un mapeo de los mensajes de
+  error de Supabase Auth a español accionable ("El email o la contraseña no son correctos.", etc.)
+  en vez de mostrar el `message` en inglés tal cual.
+- **2026-09-21 — Cerrar sesión es un componente cliente (`components/admin/LogoutButton.tsx`)**, no
+  una Server Action: `signOut()` no necesita la clave secreta ni nada exclusivo del servidor, y el
+  resto de esta app ya resuelve interacciones así (`'use client'` + el cliente de navegador de
+  `@supabase/ssr`, que persiste la sesión en cookies igual que el servidor).
