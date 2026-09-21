@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatDateTime } from "@/lib/format";
 import { legsCacheSchema, orderModeSchema, routeStatusSchema, startPointSchema } from "@/lib/supabase/schemas";
 import type { SupabaseDb } from "@/lib/supabase/types";
 import type { TablesInsert, TablesUpdate } from "@/types/supabase";
@@ -46,6 +47,17 @@ export interface RouteStopDetail extends RouteStop {
 
 export interface RouteWithStops extends RouteSummary {
   stops: RouteStopDetail[];
+}
+
+export const ROUTE_STATUS_LABEL: Record<RouteStatus, string> = {
+  draft: "Borrador",
+  active: "Activa",
+  finished: "Finalizada",
+};
+
+/** Etiqueta de una fila en la lista de rutas: "chofer — fecha de alta" (o "Sin asignar — …"). */
+export function formatRouteLabel(driverName: string | undefined, createdAt: string): string {
+  return `${driverName ?? "Sin asignar"} — ${formatDateTime(createdAt)}`;
 }
 
 const ROUTE_COLUMNS =

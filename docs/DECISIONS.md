@@ -242,3 +242,95 @@ de mapearla al dominio.
   `features/routes/routeStops.ts` y se exporta.** Mismo `check` que ya tiene `route_stops` en la
   base; se valida también en el cliente para dar un mensaje claro antes del viaje a Supabase, y
   para que el formulario del pedido (Fase 4) lo reuse sin duplicarlo.
+
+## Fase 3 — Pantallas de administración
+
+Segundo avance de la Fase 3 (el primero fue la capa de datos, arriba): las cinco pantallas bajo
+`src/app/admin/(dashboard)/` (administradores, choferes, lista de rutas, crear ruta, detalle de
+ruta), con sus componentes en `src/components/admin/`. Respuestas del usuario que motivaron este
+avance (mensaje de voz, 2026-09-21): primer admin = `brayankgr@gmail.com` (ya resuelto en Fase 1,
+sin cambios: sigue siendo un solo nivel de "administrador", ver §11.5 de `docs/PLAN_V2.md`),
+moneda en bolivianos (ya resuelto, sin cambios), el chofer también sube fotos con tope de 3 y
+autoría (ya modelado en el esquema de la Fase 1 con `route_stop_images.uploaded_by/uploaded_role`,
+la UI queda para la Fase 4), borrado lógico en todo (ya aplicado desde la Fase 1), total y partidas
+del pedido independientes (ya resuelto). Ninguna de estas pedía un cambio de esquema o de RLS; esta
+etapa fue enteramente de pantallas sobre lo ya construido.
+
+- **2026-09-21 — `src/lib/supabase/admin.ts` (`createAdminClient`): cliente `service_role` con
+  `SUPABASE_SECRET_KEY`, solo para Server Components/Route Handlers.** Lo usan el endpoint de
+  invitación (para `auth.admin.inviteUserByEmail` y el `insert` en `admins`, que no tiene política
+  de `insert` para el cliente — ver `docs/PLAN_V2.md` §5) y la pantalla de administradores (para
+  `auth.admin.getUserById`, porque la tabla `admins` no guarda el email).
+- **2026-09-21 — `src/lib/supabase/currentAdmin.ts` (`getCurrentUserId`): repite el `user_id` de
+  la sesión ya validada por el layout de `/admin`.** El layout (Server Component) ya exige sesión
+  de administrador antes de renderizar cualquier página hija; esto evita siete `supabase.auth.getClaims()` sueltos con un `!` para pasar `strict`, y cae a `redirect("/admin/login")` en el
+  caso (ya cubierto por el layout) de que no haya sesión.
+- **2026-09-21 — `POST /api/admins/invite` revalida sesión + fila activa en `admins` por su
+  cuenta, con el mismo chequeo que el layout.** Un Route Handler en `src/app/api/` no pasa por
+  `src/app/admin/(dashboard)/layout.tsx` (ese layout solo envuelve páginas bajo `/admin`), así que
+  el endpoint repite "¿hay sesión no anónima?" + "¿esa sesión tiene fila activa en `admins`?" antes
+  de tocar la clave secreta. Devuelve el email invitado en la respuesta (no vive en la fila de
+  `admins`) para que la pantalla lo muestre sin otra consulta.
+- **2026-09-21 — El error `email_exists` de `auth.admin.inviteUserByEmail` se traduce a un mensaje
+  claro, sin reactivar automáticamente un admin dado de baja con ese mismo email.** Verificado el
+  código de error vigente con el MCP de Supabase (`search_docs`/`error(code, service)`). Reactivar
+  a alguien que ya tuvo cuenta y fue dado de baja no se pidió explícitamente; si hace falta, es un
+  cambio chico (buscar el `user_id` existente y hacer `upsert` en `admins` en vez de `insert`) que
+  se deja para cuando se necesite, en vez de sumar esa rama ahora sin pedido concreto.
+- **2026-09-21 — Un solo nivel de "administrador" para invitar/quitar acceso, tal como ya estaba
+  resuelto: no se agregó una columna `is_owner`/superadmin.** El usuario confirmó por voz que el
+  primer admin (su email) "pueda crear otros administradores"; eso ya era el diseño vigente desde
+  `docs/PLAN_V2.md` §11.5 (cualquier admin activo puede invitar o quitarle el acceso a otro), así
+  que no hizo falta ningún cambio de esquema/RLS — solo construir la pantalla. La única regla de
+  negocio nueva en la UI es `canDeactivateAdmin` (función pura, testeada): bloquea el botón "Quitar
+  acceso" solo cuando el objetivo es uno mismo y no queda otro admin activo.
+- **2026-09-21 — Armar una ruta (crear o agregar tiendas desde el detalle) reusa el flujo de v1 sin
+  duplicar el parseo de links ni el importador de texto: `StorePickerSheet` + sus tres vistas
+  (`CatalogStoreList`, `NewCatalogStoreForm`, `ImportCatalogStoresPanel`) reimportan literalmente
+  `StopLinkForm`, `LocationConfirmStep`, `ManualPickerStep`, `BulkPreviewList`, `importBulkText`,
+  `requestResolveLink` y `parseSharedText` de `features/stops`/`components/stops`.** Lo único que
+  cambia es el destino del guardado: antes era el store Zustand (`addStop`/`addStops`), ahora es el
+  catálogo `stores` de Supabase (`createStore`). Los tres componentes v1 reusados
+  (`StopLinkForm`/`LocationConfirmStep`/`ManualPickerStep`) ya eran presentacionales/puros por
+  props (no tocan Zustand), así que no hizo falta tocarlos.
+- **2026-09-21 — "Elegir del catálogo" vs "agregar tienda nueva" vs "importar texto" son tres
+  vistas de un mismo orquestador sin `<Sheet>` propio (`StorePickerSheet`), igual patrón que
+  `AddStopSheet` de v1 (cada vista renderiza su propia `Sheet` de pantalla completa).** Evita anidar
+  un `Sheet` dentro de otro (que sí pasaría con un patrón de pestañas como `BulkTransferSheet`,
+  pensado para dos paneles simples, no para un flujo de varios pasos con mapa).
+- **2026-09-21 — Crear una ruta arma las tiendas en memoria (staging local) y recién crea la fila
+  en Supabase (`routes` + N `route_stops`) al confirmar "Crear ruta".** El propio pedido lo dice
+  ("Al confirmar, crea la ruta en estado draft"); staging local evita rutas `draft` huérfanas en la
+  base si el admin arranca el formulario y lo abandona sin terminar. El detalle de una ruta
+  existente, en cambio, guarda cada tienda al toque (ya hay una fila real que editar).
+- **2026-09-21 — Alta de tiendas a una ruta (nueva o ya creada) en SERIE, nunca en paralelo
+  (`for...of` con `await`).** `addRouteStop` calcula la posición leyendo la última tienda antes de
+  insertar; dos altas concurrentes leerían la misma "última posición" y se pisarían. Mismo criterio
+  que ya usa `importBulkText` para no saturar Nominatim/Google (Fase 4.2 de v1).
+- **2026-09-21 — Si falla la creación de una tienda a mitad de una importación en lote, las que ya
+  se guardaron NO se pierden ni se revierten.** `ImportCatalogStoresPanel` muestra cuántas quedaron
+  guardadas y ofrece "Continuar con N guardadas" en vez de reintentar todo el lote desde cero —
+  coherente con el pedido explícito del usuario de nunca perder datos ya escritos.
+- **2026-09-21 — La lógica de mutación de la pantalla de detalle de ruta vive en un hook
+  (`features/routes/useRouteDetailActions.ts`), no en el componente.** `RouteDetailScreen` junta
+  seis acciones (activar/finalizar/cancelar/asignar chofer/agregar-quitar-reordenar tiendas); sin
+  extraerlas el archivo pasaba las ~150 líneas de `docs/BUENAS_PRACTICAS.md`. El hook expone
+  `route`/`busy`/`error` + una función por acción; el componente queda con el JSX solamente.
+- **2026-09-21 — El detalle de una ruta permite reasignar el chofer con un `<select>` simple,
+  aunque el pedido original solo mencionaba elegirlo al crear la ruta.** Sin esto, una ruta creada
+  "sin asignar" (opción explícitamente permitida) no podría asignarse nunca después. Cambio chico
+  (reusa `assignDriver`, ya existente en la capa de datos) que cierra un hueco obvio del flujo sin
+  agregar pantallas nuevas.
+- **2026-09-21 — Reordenar tiendas del detalle de ruta es optimista: el nuevo orden se ve al
+  soltar y `reorderRouteStops` se llama en segundo plano; si falla, se revierte el orden anterior y
+  se avisa con un banner.** Arrastrar y soltar se siente roto si espera una vuelta de red antes de
+  redibujar; revertir ante error evita que la UI muestre un orden que no quedó guardado.
+- **2026-09-21 — Ícono "edit" (lápiz) nuevo en `components/ui/Icon.tsx`, para "editar chofer".**
+  No había un ícono de lápiz entre los ~25 ya dibujados a mano; se agregó uno más siguiendo el
+  mismo estilo (trazo simple, `viewBox` 24×24). "Copiar código" reusa el ícono `clipboard` que ya
+  existía (portapapeles = copiar).
+- **2026-09-21 — No se construyó una pantalla de "papelera"/auditoría de lo borrado lógicamente.**
+  El usuario pidió que nada se borre de verdad "para el momento en que un día queramos hacer
+  auditoría"; el dato ya queda guardado (`deleted_at`/`deleted_by` en las nueve tablas), pero la
+  pantalla para revisarlo sigue fuera de alcance de v2 por decisión ya tomada (`docs/PLAN_V2.md`
+  §10) — no se reabrió esa decisión sin que el usuario lo pidiera.

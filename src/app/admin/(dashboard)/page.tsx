@@ -1,13 +1,13 @@
-// Página mínima: el contenido real (lista de rutas) se arma en la Fase 3 del roadmap.
-export default function AdminHomePage() {
-  return (
-    <div className="flex flex-1 items-center justify-center p-4 text-center">
-      <div>
-        <h2 className="font-display text-2xl font-bold uppercase tracking-wide text-ink">
-          Bienvenido, administrador
-        </h2>
-        <p className="mt-1 text-sm text-soft">Las rutas y tiendas se arman desde acá muy pronto.</p>
-      </div>
-    </div>
-  );
+import { RoutesScreen } from "@/components/admin/RoutesScreen";
+import { listActiveDrivers } from "@/features/drivers/api";
+import { listRoutes } from "@/features/routes/api";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/currentAdmin";
+
+export default async function AdminHomePage() {
+  const supabase = await createClient();
+  const currentUserId = await getCurrentUserId(supabase);
+  const [routes, drivers] = await Promise.all([listRoutes(supabase), listActiveDrivers(supabase)]);
+
+  return <RoutesScreen routes={routes} drivers={drivers} currentUserId={currentUserId} />;
 }

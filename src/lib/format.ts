@@ -19,3 +19,13 @@ export function formatTime(iso: string | undefined): string {
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
+
+/** Fecha corta + hora, para listas de administrador (p. ej. "21 sept, 14:30"). */
+export function formatDateTime(iso: string | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(
+    date,
+  );
+}

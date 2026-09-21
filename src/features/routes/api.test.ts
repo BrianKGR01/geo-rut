@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assembleRouteWithStops, mapRouteRow, routeRowSchema, type RouteSummary } from "./api";
+import { assembleRouteWithStops, formatRouteLabel, mapRouteRow, routeRowSchema, type RouteSummary } from "./api";
 
 function baseRouteRow() {
   return {
@@ -134,5 +134,15 @@ describe("assembleRouteWithStops", () => {
     expect(result.stops[0]?.images.map((image) => image.id)).toEqual(["img-1", "img-2"]);
     expect(result.stops[0]?.pedidoMonto).toBe(25);
     expect(result.stops[1]?.items).toEqual([]);
+  });
+});
+
+describe("formatRouteLabel", () => {
+  it("usa el nombre del chofer cuando hay uno asignado", () => {
+    expect(formatRouteLabel("Juan Pérez", "2026-01-01T00:00:00.000Z")).toMatch(/^Juan Pérez — /);
+  });
+
+  it("dice 'Sin asignar' cuando no hay chofer", () => {
+    expect(formatRouteLabel(undefined, "2026-01-01T00:00:00.000Z")).toMatch(/^Sin asignar — /);
   });
 });

@@ -47,13 +47,35 @@ de `dev` a `main`.
 > `/admin` sin volver a loguearse.
 
 ## Fase 3 — Administradores, choferes, catálogo de tiendas y rutas en Supabase
-- [ ] Reemplazar la fuente de datos de `stops`/`route` (hoy `localStorage` vía Zustand) por Supabase, manteniendo el contrato de las funciones que ya usan los componentes donde sea posible (`addStop`, `reorderStops`, etc.)
-- [ ] Pantalla "Administradores": listar, invitar por email (`POST /api/admins/invite`), quitar acceso (borrado lógico; la app no deja quitar al único admin activo)
-- [ ] CRUD simple de choferes (`drivers`): nombre, teléfono opcional, dar de baja (borrado lógico)
-- [ ] Pantalla de administrador: lista de rutas (crear, ver estado, asignar/cambiar chofer, activar, finalizar, cancelar con borrado lógico)
-- [ ] Armar una ruta eligiendo tiendas del catálogo `stores` ya existente o agregando nuevas (reusa `StopLinkForm`, `AddStopSheet` y el importador de texto `BulkTransferSheet` ya construidos); "eliminar tienda del catálogo" también es borrado lógico
-- [ ] Generar `driver_code` de 6 caracteres al crear la ruta, con reintento si choca la restricción `unique`
+- [ ] Reemplazar la fuente de datos de `stops`/`route` (hoy `localStorage` vía Zustand) por Supabase, manteniendo el contrato de las funciones que ya usan los componentes donde sea posible (`addStop`, `reorderStops`, etc.) — pasa a la Fase 5, ver nota de cierre
+- [x] Pantalla "Administradores": listar, invitar por email (`POST /api/admins/invite`), quitar acceso (borrado lógico; la app no deja quitar al único admin activo)
+- [x] CRUD simple de choferes (`drivers`): nombre, teléfono opcional, dar de baja (borrado lógico)
+- [x] Pantalla de administrador: lista de rutas (crear, ver estado, asignar/cambiar chofer, activar, finalizar, cancelar con borrado lógico)
+- [x] Armar una ruta eligiendo tiendas del catálogo `stores` ya existente o agregando nuevas (reusa `StopLinkForm`, `AddStopSheet` y el importador de texto `BulkTransferSheet` ya construidos); "eliminar tienda del catálogo" también es borrado lógico
+- [x] Generar `driver_code` de 6 caracteres al crear la ruta, con reintento si choca la restricción `unique`
 **Hecho cuando:** el administrador puede invitar a otro admin, crear un chofer, crear una ruta eligiendo tiendas ya conocidas o nuevas, asignarle un chofer, y queda todo guardado en Supabase con su código de 6 caracteres; ninguna acción de "eliminar" borra una fila de verdad.
+
+> **Nota de cierre (2026-09-21).** Hecho: capa de datos (`features/{drivers,stores,routes,admins}/api.ts`
+> y afines, commit `c91f2a1`) + las cinco pantallas de administrador bajo
+> `src/app/admin/(dashboard)/` (`admins`, `drivers`, `/` = lista de rutas, `routes/new`,
+> `routes/[id]`), todas Server Component para los datos + Client Component para la interacción,
+> reusando `Sheet`/`Button`/`TextField`/`Banner`/`ConfirmDialog` y el flujo de alta de tiendas de
+> v1 (`StopLinkForm`/`LocationConfirmStep`/`ManualPickerStep`/el importador de texto) sin duplicar
+> el parseo de links ni Nominatim — ver `docs/DECISIONS.md`, "Fase 3 — Pantallas de
+> administración", para el detalle de cada decisión de diseño. `npm run check` en verde (24
+> archivos de test, 207 casos). El primer ítem de esta fase (reemplazar `localStorage`/Zustand por
+> Supabase en la app del chofer) no se tocó a propósito: es exactamente lo que pide la Fase 5 más
+> abajo con más detalle ("el resto del flujo de ejecución... lee y escribe contra Supabase"), así
+> que quedaría duplicado si se marcara acá también; el "Hecho cuando" de esta fase no depende de
+> él. Pendiente, no bloquea seguir: no se pudo probar el login real en el navegador (no hay
+> contraseña del primer admin en este entorno), así que las cinco pantallas se verificaron con
+> `npm run build` + confirmando que `/admin/*` sin sesión redirige a login sin bucles y que
+> `/api/admins/invite` rechaza sin sesión (401) y con email inválido (400); falta el recorrido
+> visual completo con una sesión real. Cómo probarlo a mano: `npm run dev`, entrar a `/admin` con
+> el email/contraseña del primer admin, invitar a un segundo admin desde "Administradores", crear
+> un chofer, crear una ruta nueva (con y sin chofer asignado, agregando tiendas del catálogo, una
+> nueva por link/mapa, y un lote por texto), activarla/finalizarla/cancelarla según corresponda, y
+> reordenar/quitar tiendas desde el detalle.
 
 ## Fase 4 — Pedido por tienda (monto, partidas y fotos con autoría)
 - [ ] Campo de monto total por tienda dentro de una ruta (opcional, editable en cualquier momento), en bolivianos (helper `formatMonto`/"Bs" en `lib/format.ts`), múltiplo de 5, validado con Zod
