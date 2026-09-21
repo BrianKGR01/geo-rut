@@ -411,3 +411,120 @@ algunas funciones nuevas de subida/URLs firmadas.
   `routeStopImages.ts`; solo falta conectar el `routeId`/`routeStopId` de la ejecución del chofer
   (hoy en el store Zustand, mañana en la tabla `routes`/`route_stops` vía RLS de chofer) y respetar
   `ROUTE_STOP_IMAGES_LIMIT` (ya exportado) para deshabilitar el botón al llegar a 3.
+
+## Fase 5 — Acceso del chofer por código
+
+- **2026-09-21 — Verificación del JWT anónimo en `POST /api/routes/claim`: `createAdminClient().auth.getUser(token)`**,
+  no validación manual contra `SUPABASE_JWKS_URL`. El cliente ya llamó a `signInAnonymously()` y
+  manda su `access_token` en `Authorization: Bearer`; `auth.getUser(token)` con el cliente de clave
+  secreta es la forma documentada de verificar un JWT de otro usuario desde el servidor (a
+  diferencia de `auth.getClaims()`, pensado para la sesión propia de cookies del admin, que acá no
+  aplica porque el chofer no tiene cookies de servidor). Se prefirió sobre JWKS manual porque es "lo
+  más simple que sea correcto" (la tarea daba la opción) y reusa el mismo `createAdminClient` que ya
+  existía para `/api/admins/invite`, sin sumar una dependencia de verificación de JWT.
+- **2026-09-21 — El endpoint busca la ruta por `driver_code` SIN filtrar `status` en la consulta**,
+  a diferencia de la redacción original de la tarea ("busca... status='active'... si no existe,
+  404"). Con esa redacción literal, un código de una ruta todavía en `draft` sería indistinguible de
+  un código inventado (ambos 404), pero la propia tarea pide un mensaje distinto para ese caso ("esta
+  ruta todavía no está activa"). Se resolvió separando dos códigos de error: `ROUTE_NOT_FOUND` (no
+  existe/borrada) y `ROUTE_NOT_ACTIVE` (existe, pero no está `active`) — solo con `ROUTE_NOT_ACTIVE`
+  la ruta NO se guarda en `route_driver_sessions` ni en `localStorage`, así que un chofer con un
+  código de una ruta en borrador puede reintentar apenas el administrador la active, sin recargar la
+  app. Ambos casos cuentan igual para el límite de intentos por IP.
+- **2026-09-21 — Límite de intentos: `Map<ip, timestamps[]>` en memoria, 10 fallos por IP en 10
+  minutos** (`src/lib/http/claimRateLimit.ts`), mismo espíritu que la cola de Nominatim
+  (`lib/geo/nominatim.ts`) citada como referencia en la tarea. Solo cuenta intentos FALLIDOS (código
+  inválido, ruta inactiva, JWT inválido/ausente); un canje exitoso no resetea ni suma al contador.
+  Sin persistencia entre reinicios del servidor ni entre instancias — aceptable para el tamaño de
+  esta app (un espacio de códigos de 6 caracteres sin ambiguos ya es grande por sí solo, ver
+  `docs/PLAN_V2.md` §3.2; el límite es una capa adicional, no la única defensa). Verificado a mano
+  con `curl` (11 intentos seguidos a un servidor de desarrollo real: el 9º en adelante devuelve 429).
+- **2026-09-21 — El chofer NUNCA persiste `routes.start_point`/`routes.legs_cache`**: la RLS de
+  `routes` no le da `update` (`docs/PLAN_V2.md` §5), así que el punto de partida (capturado una sola
+  vez del GPS, igual criterio que v1) y la ruta calculada (OSRM/haversine, con el mismo debounce de
+  600 ms) quedan como estado efímero de React en `useChoferLegs.ts`, nunca en Supabase. Se pierden al
+  recargar la página (el GPS los vuelve a capturar), a cambio de no necesitar un cambio de esquema/
+  RLS para esta fase. `routes.legs_cache`/`start_point` en el esquema quedan sin uso real por ahora
+  (tampoco los usa el administrador, ver Fase 3); si se quiere que el admin vea el tramo en su
+  seguimiento (Fase 6) hace falta decidir entonces si vale la pena persistirlos.
+- **2026-09-21 — Sin `currentTargetId`: la "siguiente tienda" del chofer es siempre la primera
+  `pending` según `route_stops.position`** (el orden que arma el administrador), no un destino que el
+  chofer fije. En v1 `currentTargetId` se fijaba al tocar "Ir con Google Maps", pero en la práctica
+  siempre coincidía con la primera pendiente (la única tienda que la tarjeta ofrece ir); se confirmó
+  con un test (`choferRouteMapping.test.ts`) que `nextStop`/`groupStops` de v1 siguen funcionando
+  igual sin ese campo. `ChoferStopSheet` (abrir una tienda desde "Ver lista") sigue permitiendo
+  "entregar fuera de orden" para cualquier pendiente, como en v1.
+- **2026-09-21 — El reductor de v1 (`reduceDelivery`) se reusa tal cual para validar transiciones,
+  pero su resultado sobre `route.status`/`finishedAt` se descarta** (`applyDeliveryResult`, en
+  `choferRouteMapping.ts`): `settleRoute` pasaría la ruta a `finished` sola al entregar la última
+  tienda (como en v1), pero en v2 esa decisión es exclusiva del administrador (mismo motivo de RLS
+  de arriba). Cuando el chofer entrega todo, `ChoferExecutionScreen` muestra "Ruta completa, avisa al
+  administrador" en vez de una pantalla de resumen — la ruta sigue `active` hasta que el admin la
+  finalice desde `/admin`. Si el admin la finaliza (o la cancela, o la vuelve a `draft`) mientras el
+  chofer la tiene abierta, la RLS le corta el acceso de inmediato (`docs/PLAN_V2.md` §5); el próximo
+  intento de lectura del chofer (recargar, o el botón "Reintentar") lo detecta como ruta ya no
+  accesible ("Ya no tienes acceso a esta ruta") — no hay polling para detectarlo en caliente, eso
+  quedó reservado a la Fase 6 (seguimiento del ADMINISTRADOR, no del chofer).
+- **2026-09-21 — La RPC `chofer_update_stop` no limpia `arrived_at`/`delivered_at` al "deshacer"
+  (`coalesce(p_arrived_at, arrived_at)` en su definición, ya aplicada en la Fase 1): un `undo` solo
+  cambia `status` a `pending`, los timestamps de la entrega anterior quedan en la fila.** Verificado
+  con `pg_get_functiondef` antes de decidir cómo llamarla. No se tocó la función (fuera de alcance:
+  "RPC ya creada", la tarea no pidió cambios de esquema) porque el efecto es inocuo — con
+  `status='pending'` la tarjeta vuelve a la vista "Siguiente tienda", que nunca muestra
+  `arrived_at`/`delivered_at`; solo queda como una nota para una futura auditoría fina de esas
+  columnas si hiciera falta.
+- **2026-09-21 — `ChoferStop extends Stop`** (`features/route/choferRouteMapping.ts`) en vez de un
+  tipo nuevo sin relación: permite reusar `groupStops`/`nextStop`/`buildMarkers`/`STATUS_LABEL`/
+  `evaluateArrival`/`reduceDelivery` de v1 sin tocarlos (piden `Stop`/`RouteData`), a costa de dos
+  bordes ya documentados y testeados: `coordsSource` queda fija en `"manual"` (no existe en
+  `route_stops`, ninguna pantalla del chofer la muestra) y `groupChoferStops`/`nextChoferStop`
+  re-tipan con un `as` el resultado de `groupStops`/`nextStop` (que en runtime siguen siendo
+  `ChoferStop`, esas funciones solo filtran/ordenan el arreglo de entrada sin reconstruir objetos).
+- **2026-09-21 — `ChoferDeliveryCard`/`ChoferStopSheet`/`ChoferRouteMapSection`/
+  `ChoferStopListSheet` son componentes NUEVOS bajo `src/components/chofer/`**, no una modificación
+  in-place de `DeliveryCard`/`StopDetailSheet`/`RouteMapSection`/`AppShell` (v1). Se evaluó adaptar
+  los componentes de v1 para recibir por props tanto los datos de `useAppStore` como los de
+  `useChoferRoute`, pero eso obligaba a re-cablear cada sitio de uso de v1 (`AppShell.tsx` y todo lo
+  que cuelga de ahí) solo para mantener un código que ya no tiene ninguna ruta que lo renderice
+  (`src/app/page.tsx` ahora monta `ChoferShell`, no `AppShell`) — más riesgo de romper algo por menos
+  beneficio real. En cambio, las piezas genuinamente presentacionales y ya recibidas por props se
+  SÍ se reusan tal cual, sin ninguna copia: `RouteMap`/`LocateButton` (`components/map/`),
+  `StopListPanel`/`StopRow`/`SortableStopItem` (`components/stops/`), `GeoBanner` (lee/escribe
+  `useAppStore` solo para el estado de tema/GPS globales, que siguen siendo locales por diseño, ver
+  abajo), y toda `components/ui/*`. `AppShell.tsx`, `PlanScreen.tsx`, `ExecutionScreen.tsx`,
+  `DeliveryCard.tsx`, `RouteMapSection.tsx`, `RouteSummary.tsx`, `StartPointSheet.tsx`,
+  `StartRouteButton.tsx`, `AddStopSheet.tsx`, `BulkTransferSheet.tsx`, `StopDetailSheet.tsx`,
+  `StopDeliveryActions.tsx` quedan en el repo sin ningún punto de entrada que los renderice —
+  documentado acá en vez de borrarlos en esta misma tarea, para no ampliar el diff de una etapa ya
+  grande con un borrado que no cambia el comportamiento de la app; queda para una pasada de limpieza
+  (Fase 7) si se confirma que no hace falta volver a un modo "un solo dispositivo, sin roles".
+- **2026-09-21 — `GeoBanner` se reusa sin cambios, incluida su llamada a
+  `useAppStore.getState().captureStartPoint(...)`.** Esa llamada ahora escribe en un estado de v1 que
+  ningún componente activo lee (el punto de partida real del chofer vive en `useChoferLegs`, efímero,
+  ver arriba); es inofensivo (persiste a un `localStorage` que ya no se usa para nada visible) y
+  evitó bifurcar `GeoBanner` en una versión "chofer" solo para esa línea. `settings.theme` sí sigue
+  siendo el dato real que usa `useApplyTheme`/`ThemeToggle` (`docs/PLAN_V2.md` §9: "settings puede
+  seguir en localStorage, no es dato compartido").
+- **2026-09-21 — `UPLOADED_BY_LABEL` se extrajo de `OrderImagesPanel.tsx` (admin) a
+  `features/routes/routeStopImages.ts`** para que `ChoferOrderPanel` (chofer) lo reuse sin duplicar
+  el texto — exactamente el paso pendiente que ya anotaba la nota de cierre de la Fase 4.
+- **2026-09-21 — Reglas de ESLint nuevas del plugin `react-hooks` (`set-state-in-effect`, `refs`)
+  obligaron a ajustar el patrón de "cargar datos al montar" respecto a lo que hubiera sido más
+  directo.** `useChoferArrivalDetection` sincroniza sus refs en un `useEffect` propio (nunca durante
+  el render); `useChoferLegs` deriva `legsCache: undefined` en el `return` en vez de limpiarlo con un
+  `setState` dentro del efecto cuando no hay pedido de ruta vigente; `ChoferShell` lee la ruta
+  canjeada de `localStorage` con un inicializador perezoso de `useState` (`useState(getClaimedRouteId)`)
+  en vez de un `useEffect` + `setState`, sin desajuste de hidratación porque `useHasMounted` ya oculta
+  todo lo que depende de ese valor hasta después de montar. La única carga que el linter no permitió
+  reescribir sin un efecto (`useChoferRoute` pidiendo la ruta a Supabase al montar) queda con un
+  `eslint-disable-next-line react-hooks/set-state-in-effect` puntual y comentado: es el patrón de
+  "fetch al montar" que la propia documentación de React recomienda, el linter solo no distingue que
+  los `setState` de `load` ocurren después de un `await`, no de forma síncrona.
+- **2026-09-21 — Pendiente de un ajuste MANUAL del usuario, no de código: activar "Anonymous
+  Sign-Ins" en el dashboard de Supabase.** Confirmado en vivo contra el proyecto real
+  (`signInAnonymously()` devuelve `{"error_code":"anonymous_provider_disabled"}`, HTTP 422) — no
+  existe una API de esquema/SQL para prenderlo (a diferencia de todo lo demás en `docs/PLAN_V2.md`),
+  es una configuración de Auth del proyecto (Authentication → Sign In / Providers → Anonymous
+  Sign-Ins), mismo tipo de pendiente que "Leaked Password Protection" en la Fase 1. Mientras tanto,
+  el mensaje de error que ve el chofer (`features/route/supabaseSession.ts`) distingue este caso
+  puntual y dice "avisa al administrador" en vez de sugerir un problema de conexión.

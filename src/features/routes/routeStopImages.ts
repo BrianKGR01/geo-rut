@@ -8,6 +8,12 @@ export type UploadedRole = "admin" | "chofer";
 /** Tope de fotos activas por tienda (ya reforzado por un trigger en la base, ver `isPhotoLimitError`). */
 export const ROUTE_STOP_IMAGES_LIMIT = 3;
 
+/** Rótulo para mostrar quién subió cada foto, sin resolver el `uploaded_by` (compartido admin/chofer). */
+export const UPLOADED_BY_LABEL: Record<UploadedRole, string> = {
+  admin: "Subida por el administrador",
+  chofer: "Subida por el chofer",
+};
+
 const STORAGE_BUCKET = "pedidos";
 
 /** Foto del pedido, con quién la subió (importante: el chofer solo inserta, nunca borra). */

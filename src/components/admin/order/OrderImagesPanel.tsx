@@ -7,15 +7,11 @@ import {
   getRouteStopImageUrls,
   PHOTO_LIMIT_MESSAGE,
   ROUTE_STOP_IMAGES_LIMIT,
+  UPLOADED_BY_LABEL,
   uploadRouteStopImage,
   type RouteStopImage,
 } from "@/features/routes/routeStopImages";
 import { createClient } from "@/lib/supabase/client";
-
-const UPLOADED_BY_LABEL: Record<RouteStopImage["uploadedRole"], string> = {
-  admin: "Subida por el administrador",
-  chofer: "Subida por el chofer",
-};
 
 interface OrderImagesPanelProps {
   routeId: string;
@@ -27,8 +23,8 @@ interface OrderImagesPanelProps {
 
 /**
  * Fotos del pedido (hasta 3), con quién subió cada una. El administrador solo puede subir desde
- * acá (borrar es borrado lógico, sin pantalla propia todavía); el chofer podrá insertar desde su
- * tarjeta de entrega recién en la Fase 5, con el mismo tope y el mismo `uploaded_role`.
+ * acá (borrar es borrado lógico, sin pantalla propia todavía); el chofer inserta con el mismo tope
+ * desde su tarjeta de entrega (`ChoferOrderPanel`, Fase 5), usando el mismo `UPLOADED_BY_LABEL`.
  */
 export function OrderImagesPanel({ routeId, routeStopId, images, currentUserId, onChange }: OrderImagesPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);

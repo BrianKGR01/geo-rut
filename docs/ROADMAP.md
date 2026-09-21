@@ -112,12 +112,46 @@ de `dev` a `main`.
 > el resumen actualizado.
 
 ## Fase 5 — Acceso del chofer por código
-- [ ] Sesión anónima (`supabase.auth.signInAnonymously()`) + pantalla "Ingresar código de ruta"
-- [ ] Endpoint de servidor `POST /api/routes/claim` (clave secreta): valida el código contra una ruta `active` y no borrada, registra la fila en `route_driver_sessions`
-- [ ] Límite de intentos por IP para el endpoint `claim` (evitar fuerza bruta del código)
-- [ ] El resto del flujo de ejecución (RF-5: ir a la siguiente, detección de llegada, entregar, observación) lee y escribe contra Supabase respetando RLS, en vez de `localStorage`
-- [ ] El chofer puede agregar fotos al pedido desde la tarjeta de entrega (subir, nunca borrar; el botón se deshabilita al llegar a 3)
+- [x] Sesión anónima (`supabase.auth.signInAnonymously()`) + pantalla "Ingresar código de ruta"
+- [x] Endpoint de servidor `POST /api/routes/claim` (clave secreta): valida el código contra una ruta `active` y no borrada, registra la fila en `route_driver_sessions`
+- [x] Límite de intentos por IP para el endpoint `claim` (evitar fuerza bruta del código)
+- [x] El resto del flujo de ejecución (RF-5: ir a la siguiente, detección de llegada, entregar, observación) lee y escribe contra Supabase respetando RLS, en vez de `localStorage`
+- [x] El chofer puede agregar fotos al pedido desde la tarjeta de entrega (subir, nunca borrar; el botón se deshabilita al llegar a 3)
 **Hecho cuando:** con un código válido de una ruta activa, un chofer sin cuenta ejecuta la ruta de punta a punta (llega, ve el pedido, agrega una foto si hace falta, entrega); un código de una ruta no activa, borrada, o inventado, no funciona.
+
+> **Nota de cierre (2026-09-21).** Hecho: `POST /api/routes/claim` (`src/app/api/routes/claim/route.ts`)
+> valida `{ code }` con Zod, exige `Authorization: Bearer <access_token>` de una sesión anónima ya
+> creada en el cliente y lo verifica con `createAdminClient().auth.getUser(token)` (clave secreta;
+> el camino "más simple que sea correcto" de `docs/PLAN_V2.md` §3.2); busca la ruta por
+> `driver_code` sin filtrar `status` para poder distinguir "código inexistente" (`ROUTE_NOT_FOUND`)
+> de "existe pero no está activa" (`ROUTE_NOT_ACTIVE`, mensaje propio en la pantalla de código) y
+> recién con `status='active'` hace `upsert` en `route_driver_sessions`. Límite de intentos:
+> `src/lib/http/claimRateLimit.ts` (`Map<ip, timestamps[]>`, mismo espíritu que la cola de
+> Nominatim), 10 intentos fallidos por IP en 10 minutos, verificado a mano con `curl` (11 intentos
+> seguidos: los primeros fallan con 401/404 según corresponda, del 9º en adelante 429). Sesión del
+> chofer: `src/features/route/supabaseSession.ts` (`claimRouteByCode`, `getClaimedRouteId` en
+> `localStorage`). Ejecución: `src/features/route/useChoferRoute.ts` (con `useChoferLegs.ts` para
+> el cálculo de ruta/tramos, efímero, y `useChoferArrivalDetection.ts`) reusa `reduceDelivery`,
+> `groupStops`/`nextStop`, `buildMarkers` y `evaluateArrival` de v1 tal cual — ver
+> `src/features/route/choferRouteMapping.ts` para el mapeo `RouteWithStops` (Supabase) → `Stop`/
+> `RoutePlan` (v1). Pantallas nuevas en `src/components/chofer/` (`ClaimCodeScreen`,
+> `ChoferExecutionScreen`, `ChoferDeliveryCard`, `ChoferOrderPanel`, `ChoferStopListSheet`,
+> `ChoferStopSheet`, `ChoferRouteMapSection`, `ChoferMessageScreen`) orquestadas por
+> `src/components/ChoferShell.tsx`, que `src/app/page.tsx` renderiza en lugar de `AppShell` (v1,
+> queda sin usar — ver `docs/DECISIONS.md`). `npm run check` en verde (26 archivos de test, 221
+> casos). **Bloqueante para probar de punta a punta, pendiente de un ajuste manual del usuario**:
+> "Anonymous Sign-Ins" está **desactivado** en el proyecto de Supabase (confirmado en vivo:
+> `signInAnonymously()` devuelve `anonymous_provider_disabled`, HTTP 422) — se activa en el
+> dashboard, Authentication → Sign In / Providers → Anonymous Sign-Ins (no hay una API de esquema
+> para esto, mismo tipo de ajuste que "Leaked Password Protection" en la Fase 1). Mientras tanto la
+> app ya muestra un mensaje claro ("avisa al administrador...") en vez de romperse. Cómo probarlo a
+> mano una vez activado: desde `/admin` crear una ruta, agregarle tiendas y un chofer, activarla;
+> copiar su `driver_code`; abrir `/` en otra pestaña/navegador (o modo incógnito, para no compartir
+> la sesión admin), escribirlo en "Ingresar código de ruta"; confirmar que se ve el mapa y la
+> tarjeta de la primera tienda, que "Ya llegué"/"Entregado" avanzan la ruta, que se puede subir una
+> foto (hasta 3, con "Subida por el chofer") y agregar observación, que "Ver lista" muestra
+> entregadas/pendientes de solo lectura, y que un código de una ruta en borrador o inventado muestra
+> el mensaje correspondiente sin romper la pantalla.
 
 ## Fase 6 — Seguimiento del administrador (polling)
 - [ ] Hook de polling (`features/route/useRouteLiveStatus.ts` o similar): `select` liviano de `route_stops` por `route_id` cada 10–15 s, pausado con `visibilitychange` y cortado fuera de la vista de esa ruta (ver `docs/PLAN_V2.md` §6)
