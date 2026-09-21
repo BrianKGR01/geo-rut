@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@/components/ui/Button";
@@ -67,6 +68,12 @@ export function ClaimCodeScreen({ onClaimed }: ClaimCodeScreenProps) {
       <Button big className="w-full max-w-xs" onClick={submit} disabled={busy}>
         {busy ? "Verificando…" : "Ingresar"}
       </Button>
+      <Link
+        href="/admin/login"
+        className="min-h-11 text-sm font-semibold text-via underline underline-offset-4"
+      >
+        ¿Eres administrador? Ingresa con tu cuenta
+      </Link>
     </div>
   );
 }
