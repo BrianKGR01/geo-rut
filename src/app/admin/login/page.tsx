@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
@@ -120,6 +121,12 @@ export default function AdminLoginPage() {
           <Button type="submit" big disabled={busy}>
             {busy ? "Ingresando…" : "Ingresar"}
           </Button>
+          <Link
+            href="/"
+            className="min-h-11 text-center text-sm font-semibold text-via underline underline-offset-4"
+          >
+            ¿Eres el chofer? Ingresa el código de tu ruta
+          </Link>
         </form>
       </main>
     </div>
