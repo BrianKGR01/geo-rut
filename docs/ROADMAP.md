@@ -1,81 +1,56 @@
-# ROADMAP
+# ROADMAP — v2 (activo)
+
+Login, roles (administrador/chofer), Supabase como backend y pedidos con foto por tienda. Ver el
+plan completo en [`docs/PLAN_V2.md`](./PLAN_V2.md) antes de tocar código — ahí están el modelo de
+datos, las políticas RLS y las decisiones abiertas que hay que confirmar primero.
+
+La v1 (MVP local sin login, completa) quedó archivada en
+[`docs/ROADMAP_V1.md`](./ROADMAP_V1.md). Esta numeración de fases empieza de nuevo, propia de v2.
 
 Marca `[x]` al completar. No avances de fase sin cumplir su "Hecho cuando".
 
-## Fase 0 — Base del proyecto
-- [x] Scaffold Next.js + TS estricto + Tailwind + ESLint
-- [x] Vitest configurado; scripts `lint`, `typecheck`, `test`, `check`
-- [x] Estructura de carpetas de AGENTS.md; `docs/DECISIONS.md` creado
-- [x] Layout móvil base (100dvh, safe areas), tema de alto contraste
-- [x] Tipos de dominio + store Zustand persistente con versión/migración (+ tests)
-**Hecho cuando:** `npm run check` pasa y se ve una pantalla vacía correcta en 360 px.
+## Fase 1 — Supabase: proyecto y esquema base
+- [ ] Confirmar `docs/PLAN_V2.md` con el usuario (decisiones abiertas de su §10); ajustar el plan si hace falta
+- [ ] `@supabase/ssr` + `@supabase/supabase-js` instalados (versión vigente, verificada en la documentación al momento de instalar)
+- [ ] Migraciones SQL (vía MCP `apply_migration`, con nombre y control de versión): tablas `admins`, `stores`, `routes`, `route_stops`, `route_driver_sessions`; RLS habilitada y con políticas en las cinco
+- [ ] Bucket de Storage `pedidos` (privado) + políticas RLS sobre `storage.objects`
+- [ ] Alta manual del primer administrador (SQL, con el email que confirme el usuario) + fila en `admins`
+**Hecho cuando:** `list_tables`/`get_advisors` (MCP de Supabase) muestran las cinco tablas con RLS activa y sin advertencias de seguridad; el primer admin existe.
 
-> **Nota de cierre (2026-09-19).** Hecho: scaffold Next 16 + TS estricto + Tailwind 4 + ESLint, Vitest, scripts `lint/typecheck/test/check`, carpetas de AGENTS.md, `docs/DECISIONS.md`, layout `100dvh` con safe areas y tema claro de alto contraste, tipos de dominio, store Zustand `persist` v1 con migración y validación Zod (11 tests). Pendiente: nada. Probar: `npm run dev`, abrir en 360 px → encabezado "RutaTiendas" y el mensaje "Aún no hay tiendas en tu ruta." sin scroll horizontal.
+## Fase 2 — Login de administrador
+- [ ] Clientes de Supabase para navegador y servidor (`lib/supabase/client.ts`, `lib/supabase/server.ts`) + middleware de Next para refrescar la cookie de sesión
+- [ ] Pantalla de login de administrador (email + contraseña)
+- [ ] Protección de las rutas/pantallas de administrador (redirige a login si no hay sesión o el usuario no está en `admins`)
+- [ ] Cerrar sesión
+**Hecho cuando:** un administrador entra con su email/contraseña real, queda logueado entre recargas (cookie), y una cuenta que no está en `admins` no puede pasar.
 
-## Fase 1 — Tiendas
-- [x] `lib/geo`: haversine + parser de links (puro) con tests por formato
-- [x] `POST /api/resolve-link` con lista blanca, redirecciones, timeout, fallbacks (HTML → Nominatim) + tests
-- [x] Componente de mapa (Leaflet, solo cliente) con marcadores
-- [x] Formulario "Agregar tienda": pegar, extraer URL/nombre, resolver
-- [x] Confirmación con pin arrastrable + aviso de ubicación aproximada
-- [x] Selector manual a pantalla completa
-- [x] Editar / eliminar tienda
-**Hecho cuando:** criterio de aceptación 1 y 7 del PRD.
+## Fase 3 — Catálogo de tiendas y rutas en Supabase (administrador)
+- [ ] Reemplazar la fuente de datos de `stops`/`route` (hoy `localStorage` vía Zustand) por Supabase, manteniendo el contrato de las funciones que ya usan los componentes donde sea posible (`addStop`, `reorderStops`, etc.)
+- [ ] Pantalla de administrador: lista de rutas (crear, ver estado, activar, finalizar)
+- [ ] Armar una ruta eligiendo tiendas del catálogo `stores` ya existente o agregando nuevas (reusa `StopLinkForm`, `AddStopSheet` y el importador de texto `BulkTransferSheet` ya construidos)
+- [ ] Generar `driver_code` de 6 caracteres al crear la ruta, con reintento si choca la restricción `unique`
+**Hecho cuando:** el administrador puede crear una ruta eligiendo tiendas ya conocidas o nuevas, y queda guardada en Supabase con su código de 6 caracteres.
 
-## Fase 2 — Planificación de ruta
-- [x] Hook de geolocalización (permiso tras gesto, precisión, errores)
-- [x] `RoutingProvider` + implementación OSRM (matriz y ruta) con validación Zod
-- [x] Optimizador de camino abierto (exacto ≤ 9, NN + 2-opt > 9) + tests
-- [x] Fallback haversine con aviso
-- [x] Pantalla dividida mapa/lista, marcadores numerados, polilínea, totales
-- [x] Drag & drop táctil; `orderMode` manual/optimizado; mapa expandible
-**Hecho cuando:** criterios 2, 3 y 8.
+## Fase 4 — Pedido por tienda (monto + fotos)
+- [ ] Campo de monto por tienda dentro de una ruta, múltiplo de 5, validado con Zod
+- [ ] Subida de hasta 3 fotos por tienda al bucket `pedidos`, con vista previa antes de guardar
+- [ ] Mostrar el pedido (monto + fotos) en la tarjeta de entrega del chofer (RF-5 del PRD, sin cambios en el resto de esa pantalla)
+**Hecho cuando:** cada tienda de una ruta puede tener un monto y hasta 3 fotos, y ambos se ven durante la entrega.
 
-## Fase 3 — Ejecución
-- [x] Reductor de estados de parada y de ruta + tests
-- [x] "Iniciar ruta": vista de mapa grande + tarjeta de siguiente tienda
-- [x] "Ir a la siguiente": deep link a Google Maps
-- [x] Detección de llegada (visibilitychange + watchPosition, radio y precisión) + tests de la lógica
-- [x] Tarjeta de entrega: observación + "Entregado"; botones manuales "Ya llegué" / deshacer
-- [x] Reordenar/agregar durante ruta activa
-- [x] Resumen final + "Nueva ruta"
-**Hecho cuando:** criterios 4, 5 y 6; flujo §5 completo a mano.
+## Fase 5 — Acceso del chofer por código
+- [ ] Sesión anónima (`supabase.auth.signInAnonymously()`) + pantalla "Ingresar código de ruta"
+- [ ] Endpoint de servidor `POST /api/routes/claim` (clave secreta): valida el código contra una ruta `active`, registra la fila en `route_driver_sessions`
+- [ ] Límite de intentos por IP para el endpoint `claim` (evitar fuerza bruta del código)
+- [ ] El resto del flujo de ejecución (RF-5: ir a la siguiente, detección de llegada, entregar, observación) lee y escribe contra Supabase respetando RLS, en vez de `localStorage`
+**Hecho cuando:** con un código válido de una ruta activa, un chofer sin cuenta ejecuta la ruta de punta a punta (llega, ve el pedido, entrega); un código de una ruta no activa, o inventado, no funciona.
 
-## Fase 4 — Pulido y despliegue
-- [x] Manifest PWA + íconos
-- [x] Error boundary, estados vacíos, mensajes de error revisados
-- [x] Revisión de accesibilidad y tamaños táctiles
-- [x] README (uso, despliegue en Vercel, privacidad, limitaciones)
-**Hecho cuando:** `npm run build` limpio y checklist "Definición de terminado" de AGENTS.md.
+## Fase 6 — Resiliencia y pulido
+- [ ] Manejo de reintentos ante pérdida de señal durante la ejecución de una ruta activa (ver `docs/PLAN_V2.md` §8)
+- [ ] Revisión de RLS de punta a punta: probar como administrador, como chofer con código válido, como chofer con código de una ruta inactiva, como anónimo sin canjear ningún código
+- [ ] README actualizado (login, roles, variables de entorno necesarias en Vercel, cómo se prueba cada rol)
+- [ ] `npm run check` en verde
+**Hecho cuando:** se cumple la "Definición de terminado" de `AGENTS.md`, incluido el flujo de login para los dos roles.
 
-> **Nota de cierre (2026-09-19).** Hecho: `manifest.webmanifest` instalable (standalone, tema, íconos 192/512/maskable + apple-icon), error boundary de ruta y global con "Recargar" que no borra datos, estados vacíos, mensajes de error en español y accionables, foco visible, labels, `aria-live` en cambios de estado, hojas que reciben foco y cierran con Escape, todos los controles ≥ 44 px (medido en 360×740, incluidos los marcadores del mapa) y sin scroll horizontal, README completo. `npm run check` en verde (145 tests) y build de producción probado con `next start`. Pendiente (requiere el celular/Vercel, no se puede hacer desde aquí): instalar la PWA, GPS real, abrir la app de Google Maps y un link `maps.app.goo.gl` real. Probar: ver README → "Probarla desde el celular" y "Desplegar en Vercel".
-
-## Fase 4.1 — Feedback de la primera prueba en el celular
-- [x] Botón/gesto "atrás" cierra la hoja o diálogo abierto en vez de salir de la app
-- [x] Pedir el nombre en la misma pantalla del pin (selector manual y confirmación)
-- [x] Ubicación: pedirla en el gesto correcto, reintento, baja precisión de respaldo, botón "mi ubicación", sin centro fijo en Lima
-- [x] Punto de partida propio: ubicación actual o punto fijo predeterminado (storage v2 + migración + tests)
-- [x] Rediseño visual para sol y noche: tema claro/oscuro/auto, tipografía, íconos
-**Hecho cuando:** los cinco puntos reportados por el usuario están resueltos y `npm run check` pasa.
-
-> **Nota de cierre (2026-09-19).** Hecho: todo lo anterior; 157 tests. Verificado en 360×740: atrás recorre selector → formulario → pantalla principal sin salir de la app y cancela diálogos; datos v1 del celular migran a v2 sin perderse; partida fija → "Optimizar" ordena desde ella y aparece el marcador INI; tema oscuro y claro. Pendiente de probar en el celular: permiso de ubicación real (si sigue fallando, abrir el aviso "¿Cómo lo arreglo?"), detección de llegada en la calle. Probar: abrir una hoja y usar el gesto atrás; "Agregar tienda" → "No tengo link" → poner nombre y guardar; fila "Partida" → "Cambiar"; ícono de tema en la cabecera.
-
-## Fase 4.2 — Importar/exportar tiendas en lote
-- [x] Módulo puro `features/stops/bulkText.ts`: `parseBulkText` (bloques → tienda o error, sin orden fijo nombre/ubicación, recorte a `MAX_BULK_ITEMS`) y `serializeStops`, con tests
-- [x] Módulo puro `features/stops/importStops.ts`: `importBulkText` resuelve cada bloque (coords en texto plano → `parseCoordsFromUrl` local → `resolveLink` inyectado, en serie), descarta duplicados por distancia (`DUPLICATE_RADIUS_M`) y arma la vista previa (`BulkPreviewItem[]`), con tests
-- [x] Acción de alta múltiple en el store: `addStops` (`stopsOps.addStops` + `store.ts`), con test
-- [x] Pantalla/acción para pegar el texto, revisar bloques con error/duplicados y confirmar el alta en lote (usa `importBulkText` + `addStops`)
-- [x] Botón para exportar/copiar la ruta actual en el mismo formato (usa `serializeStops`)
-**Hecho cuando:** se puede pegar una lista de tiendas y armar la ruta sin cargarlas una por una, y exportar/reimportar sin perder datos.
-**Cómo probar a mano:** en la pantalla de planificación, tocar el botón con el ícono de flechas (junto a "Agregar tienda"/"Optimizar") → pestaña "Importar": pegar texto (o "Elegir archivo .txt"), "Revisar", confirmar con "Importar N tiendas"; pestaña "Exportar": copiar, descargar `tiendas.txt` o compartir (si el navegador lo soporta).
-
-> **Nota de cierre (2026-09-21).** Hecho: las dos pantallas pendientes. `BulkImportPanel` (pegar/archivo → revisar en serie con progreso → vista previa con estado por bloque → alta en lote) y `BulkExportPanel` (texto exportado + copiar/descargar/compartir), unidas en `BulkTransferSheet` (pestañas Importar/Exportar) y enganchadas en `PlanScreen`/`AppShell` con un botón compacto (ícono "transfer", ≥44 px) junto a "Agregar tienda". Sin UI nueva pendiente para esta fase. Verificado a mano en el navegador a 360×740 y 375×812 (sin scroll horizontal, botones ≥44 px): importar coordenadas en texto plano, duplicado detectado y omitido, bloque sin ubicación reportado como error, alta de la tienda válida y cierre de la hoja; exportar generó el mismo formato reimportable. Corrección posterior (revisión de código, mismo día): `BulkImportPanel`/`BulkExportPanel` quedan siempre montados dentro de la hoja y solo se ocultan con `hidden` al cambiar de pestaña (antes se desmontaban y se perdía el texto pegado); la vista previa del import usa `useBackLayer` propio para que el atrás del celular vuelva primero a "editar" (conservando el texto) y recién en un segundo atrás cierre la hoja; en `PlanScreen` el botón de icono "transfer" pasó a compartir fila con "Agregar tienda" y "Optimizar" bajó a su propia fila, para que no se corten a 360 px. Verificado con `history.back()` simulado en el navegador y a 360×740. `npm run check` en verde de punta a punta (lint + typecheck + test + build) tanto antes como después de estas correcciones: **175 tests** (16 archivos), sin errores de ESLint/TypeScript, build de producción (`next build`, Turbopack) limpio. Pendiente de probar en el celular real: "Pegar" con `navigator.clipboard.readText()`, "Elegir archivo .txt" con el selector nativo, "Compartir" con `navigator.share`, y el gesto atrás/cambio de pestaña ya verificados solo por simulación en el navegador de escritorio.
-
-## Fase 5 — Pedidos
-- [ ] CRUD de ítems (descripción + cantidad) por tienda
-- [ ] Checklist en la tarjeta de entrega; totales en la lista
-- [ ] Migración de storage si hiciera falta + tests
-**Hecho cuando:** RF-8 completo.
-
-## Futuro (no tocar)
-Ver PRD §10.
+## Futuro (no tocar en v2)
+Ver `docs/PLAN_V2.md` §9 (realtime para el admin, fotos de prueba de entrega tomadas por el
+chofer, padrón de choferes reutilizable, recuperar contraseña/alta de admins por UI) y PRD §10.
