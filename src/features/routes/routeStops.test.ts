@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapRouteStopRow, pedidoMontoInputSchema, routeStopRowSchema } from "./routeStops";
+import { mapRouteStopRow, mergeRouteStopLiveStates, pedidoMontoInputSchema, routeStopRowSchema, type RouteStopLiveState } from "./routeStops";
 
 function baseRow() {
   return {
@@ -72,5 +72,39 @@ describe("pedidoMontoInputSchema", () => {
     expect(() => pedidoMontoInputSchema.parse(0)).toThrow();
     expect(() => pedidoMontoInputSchema.parse(-5)).toThrow();
     expect(() => pedidoMontoInputSchema.parse(12)).toThrow();
+  });
+});
+
+describe("mergeRouteStopLiveStates", () => {
+  const stop = mapRouteStopRow(routeStopRowSchema.parse(baseRow()));
+
+  it("pisa status/arrivedAt/deliveredAt de las tiendas que trae el sondeo, deja el resto igual", () => {
+    const live: RouteStopLiveState[] = [
+      {
+        id: "stop-1",
+        position: 0,
+        status: "delivered",
+        arrivedAt: "2026-01-01T10:00:00.000Z",
+        deliveredAt: "2026-01-01T10:05:00.000Z",
+      },
+    ];
+
+    const [merged] = mergeRouteStopLiveStates([stop], live);
+
+    expect(merged).toEqual({ ...stop, status: "delivered", arrivedAt: "2026-01-01T10:00:00.000Z", deliveredAt: "2026-01-01T10:05:00.000Z" });
+  });
+
+  it("una tienda sin fila en el sondeo (borrada/agregada después) queda sin tocar", () => {
+    const [merged] = mergeRouteStopLiveStates([stop], []);
+    expect(merged).toBe(stop);
+  });
+
+  it("no pisa pedidoMonto/name/items/images: solo conoce status/arrivedAt/deliveredAt", () => {
+    const detailed = { ...stop, pedidoMonto: 40, items: [{ id: "i1" }], images: [{ id: "img1" }] };
+    const [merged] = mergeRouteStopLiveStates([detailed], [{ id: "stop-1", position: 0, status: "delivering" }]);
+    expect(merged.pedidoMonto).toBe(40);
+    expect(merged.items).toEqual([{ id: "i1" }]);
+    expect(merged.images).toEqual([{ id: "img1" }]);
+    expect(merged.status).toBe("delivering");
   });
 });

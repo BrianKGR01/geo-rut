@@ -14,9 +14,24 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from "@dnd-kit/utilities";
 import { Icon } from "@/components/ui/Icon";
 import type { RouteStopDetail } from "@/features/routes/api";
+import { STATUS_LABEL } from "@/features/route/selectors";
 import { formatMonto } from "@/lib/format";
+import type { StopStatus } from "@/types/domain";
 
 const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
+
+/** Mismos tonos que `StopRow` (v1) para que "pendiente/entregando/entregado" se lea igual en toda la app. */
+const STATUS_CHIP: Record<StopStatus, string> = {
+  pending: "bg-raised text-soft",
+  delivering: "bg-warn-solid text-white",
+  delivered: "bg-ok-solid text-white",
+};
+
+const PLATE_CLASS: Record<StopStatus, string> = {
+  pending: "bg-plate text-white",
+  delivering: "bg-warn-solid text-white",
+  delivered: "bg-ok-solid text-white",
+};
 
 interface RouteStopsEditorProps {
   stops: RouteStopDetail[];
@@ -95,14 +110,21 @@ function SortableRouteStopRow({ stop, label, onRemove, onEditOrder }: SortableRo
           type="button"
           onClick={onEditOrder}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-l-xl px-3 py-2 text-left active:bg-raised"
-          aria-label={`${stop.name}. Editar pedido`}
+          aria-label={`${stop.name}, ${STATUS_LABEL[stop.status]}. Editar pedido`}
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-plate font-display text-xl font-bold text-white">
-            {label}
+          <span
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] font-display text-xl font-bold ${PLATE_CLASS[stop.status]}`}
+          >
+            {stop.status === "delivered" ? <Icon name="check" size={20} /> : label}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-base font-bold text-ink">{stop.name}</span>
-            <span className="block truncate text-sm text-soft">{orderSummary(stop)}</span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide ${STATUS_CHIP[stop.status]}`}>
+                {STATUS_LABEL[stop.status]}
+              </span>
+              <span className="truncate text-sm text-soft">{orderSummary(stop)}</span>
+            </span>
           </span>
         </button>
         <button

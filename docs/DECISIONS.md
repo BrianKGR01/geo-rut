@@ -528,3 +528,58 @@ algunas funciones nuevas de subida/URLs firmadas.
   Sign-Ins), mismo tipo de pendiente que "Leaked Password Protection" en la Fase 1. Mientras tanto,
   el mensaje de error que ve el chofer (`features/route/supabaseSession.ts`) distingue este caso
   puntual y dice "avisa al administrador" en vez de sugerir un problema de conexión.
+
+## Fase 6 — Seguimiento del administrador (polling)
+
+- **2026-09-21 — `useRouteLiveStatus` vive en `features/routes/` (plural), no en `features/route/`
+  (singular) como sugería la redacción de la tarea.** Mantiene la convención ya establecida en este
+  repo (ver notas de la Fase 3, "capa de datos"): `features/route/` es el dominio compartido con el
+  chofer/v1 (`Stop`/`RoutePlan`, sin Supabase salvo `supabaseSession.ts`/`claimContract.ts`, que son
+  del lado del chofer); `features/routes/` es la capa de datos de Supabase que usa el administrador
+  (`api.ts`, `routeStops.ts`, `useRouteDetailActions.ts`). Este hook solo lo usa
+  `RouteDetailScreen` (admin) y depende directo de `routeStops.ts`, así que encaja ahí.
+- **2026-09-21 — El sondeo NO guarda estado propio: recibe un `onUpdate` y lo llama con cada
+  ronda, en vez de devolver `RouteStopLiveState[] | undefined` desde un `useState` interno.** Con
+  estado propio, aplicar el resultado sobre `route.stops` en `useRouteDetailActions` necesitaba un
+  segundo `useEffect` que llamara a `setRoute` de forma síncrona en su cuerpo — exactamente el
+  patrón que la regla nueva de ESLint `react-hooks/set-state-in-effect` rechaza (ver nota de la
+  Fase 5 sobre esa misma regla). El patrón de callback ("suscribirse a un sistema externo y llamar a
+  `setState` en un callback", como indica la guía de Effects de React) evita el segundo efecto por
+  completo: `useRouteDetailActions` pasa un `applyLiveStates` memoizado con `useCallback` que hace el
+  único `setRoute`, y ese `setRoute` ocurre dentro de la función `poll` (después de un `await`), no
+  de forma síncrona en el cuerpo de ningún efecto.
+- **2026-09-21 — La función que guarda la última `onUpdate` recibida usa un `useRef` actualizado en
+  un `useEffect` sin dependencias (corre en cada render), no una asignación directa
+  `ref.current = onUpdate` durante el render.** La regla `react-hooks/refs` (misma familia que
+  `set-state-in-effect`, ver Fase 5) prohíbe escribir un ref durante el render; el efecto sin
+  dependencias es el reemplazo directo, sin cambiar el comportamiento (sigue siendo "la referencia
+  más reciente" en cada intento de sondeo).
+- **2026-09-21 — Intervalo fijo en 12 s** (dentro del rango "10-15 s" pedido en `docs/PLAN_V2.md`
+  §6), sin volverlo configurable: no hay otro lugar de la app que necesite un valor distinto todavía.
+- **2026-09-21 — `mergeRouteStopLiveStates` es genérica (`<T extends RouteStop>`) y solo pisa
+  `status`/`arrivedAt`/`deliveredAt`.** Vive en `routeStops.ts` junto al resto del CRUD de esa tabla,
+  no en `api.ts` (donde vive `RouteStopDetail`), para no crear una dependencia circular; al ser
+  genérica funciona igual sobre `RouteStopDetail` (que además trae `items`/`images`) sin duplicarla.
+  No toca `position` a propósito: el orden en pantalla lo decide el administrador (`reorder`, estado
+  local ya optimista) y el chofer nunca cambia `position`, así que pisarlo desde el sondeo solo
+  agregaría una fuente más de verdad sobre el mismo campo sin necesidad.
+- **2026-09-21 — El sondeo se activa/corta según `route.status` del propio estado en memoria del
+  admin (no vuelve a pedirlo a Supabase), así que arranca solo con activar la ruta desde la misma
+  pantalla (sin recargar) y se corta solo al finalizarla/cancelarla.** `useRouteDetailActions` ya
+  actualiza `route.status` al llamar `activate`/`finish`; el hook simplemente reacciona a ese cambio
+  como cualquier otra dependencia de efecto.
+- **2026-09-21 — Se agregó un indicador de estado (chip "Pendiente"/"Entregando"/"Entregado" +
+  color de placa) a cada fila de `RouteStopsEditor`, que antes solo mostraba el resumen del pedido.**
+  Sin esto, el sondeo actualizaba el estado en memoria pero no había nada visible que reflejara "Ya
+  llegué"/"Entregado" del chofer — el "Hecho cuando" de esta fase pide justamente que el
+  administrador lo VEA. Reusa `STATUS_LABEL` de `features/route/selectors.ts` (mismo texto que ya
+  usa el chofer) y los mismos tonos de `StopRow` (v1) para que el color signifique lo mismo en toda
+  la app, sin agregar un mapeo de colores nuevo.
+- **2026-09-21 — No se agregó un indicador de "actualizando…"**, tal como aclaraba la tarea ("no
+  hace falta... con que funcione alcanza").
+- **2026-09-21 — No hay mapa en la pantalla de detalle de ruta del administrador (solo la lista
+  `RouteStopsEditor`), así que el sondeo solo redibuja la lista.** `docs/PLAN_V2.md` §6 dice
+  "mapa/lista" pensando en el `RouteMap` que sí usa el chofer, pero esa pantalla del admin nunca tuvo
+  mapa (Fase 3, ver su nota de cierre: solo `RouteInfoCard` + `RouteStopsEditor`); agregar un mapa
+  ahí es un cambio de alcance mayor que esta fase no pidió, y `mergeRouteStopLiveStates` ya deja el
+  dato listo (`route.stops` con `status` fresco) para cuando se decida sumarlo.

@@ -151,3 +151,64 @@ export async function reorderRouteStops(supabase: SupabaseDb, routeId: string, o
   const failed = results.find((result) => result.error);
   if (failed?.error) throw failed.error;
 }
+
+/**
+ * Estado liviano de una tienda para el sondeo del administrador (docs/PLAN_V2.md §6): sin `note`
+ * ni fotos, para que la respuesta del `select` sea chica y se pueda pedir cada 10-15 s.
+ */
+export interface RouteStopLiveState {
+  id: string;
+  position: number;
+  status: StopStatus;
+  arrivedAt?: string;
+  deliveredAt?: string;
+}
+
+const ROUTE_STOP_LIVE_COLUMNS = "id, position, status, arrived_at, delivered_at";
+
+const routeStopLiveRowSchema = z.object({
+  id: z.string(),
+  position: z.number(),
+  status: stopStatusSchema,
+  arrived_at: z.string().nullable(),
+  delivered_at: z.string().nullable(),
+});
+
+function mapRouteStopLiveRow(row: z.infer<typeof routeStopLiveRowSchema>): RouteStopLiveState {
+  return {
+    id: row.id,
+    position: row.position,
+    status: row.status,
+    arrivedAt: row.arrived_at ?? undefined,
+    deliveredAt: row.delivered_at ?? undefined,
+  };
+}
+
+/** Un `select` por ronda de sondeo: solo las columnas que puede cambiar el chofer, nada de `note`/fotos. */
+export async function fetchRouteStopLiveStates(supabase: SupabaseDb, routeId: string): Promise<RouteStopLiveState[]> {
+  const { data, error } = await supabase
+    .from("route_stops")
+    .select(ROUTE_STOP_LIVE_COLUMNS)
+    .eq("route_id", routeId)
+    .is("deleted_at", null);
+  if (error) throw error;
+  return routeStopLiveRowSchema.array().parse(data).map(mapRouteStopLiveRow);
+}
+
+/**
+ * Aplica el resultado de un sondeo a la lista de tiendas ya cargada: solo pisa `status`/
+ * `arrivedAt`/`deliveredAt` (lo que puede cambiar `chofer_update_stop`), conserva el resto de cada
+ * tienda (pedido, orden en pantalla) tal cual estaba. Genérica sobre `T extends RouteStop` para
+ * poder usarse directo con `RouteStopDetail` (que además trae `items`/`images`) sin duplicarla.
+ */
+export function mergeRouteStopLiveStates<T extends RouteStop>(stops: T[], liveStates: RouteStopLiveState[]): T[] {
+  const liveById = new Map(liveStates.map((live) => [live.id, live]));
+  return stops.map((stop) => {
+    const live = liveById.get(stop.id);
+    if (!live) return stop;
+    if (live.status === stop.status && live.arrivedAt === stop.arrivedAt && live.deliveredAt === stop.deliveredAt) {
+      return stop;
+    }
+    return { ...stop, status: live.status, arrivedAt: live.arrivedAt, deliveredAt: live.deliveredAt };
+  });
+}

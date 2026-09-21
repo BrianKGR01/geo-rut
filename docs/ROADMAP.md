@@ -154,9 +154,28 @@ de `dev` a `main`.
 > el mensaje correspondiente sin romper la pantalla.
 
 ## Fase 6 — Seguimiento del administrador (polling)
-- [ ] Hook de polling (`features/route/useRouteLiveStatus.ts` o similar): `select` liviano de `route_stops` por `route_id` cada 10–15 s, pausado con `visibilitychange` y cortado fuera de la vista de esa ruta (ver `docs/PLAN_V2.md` §6)
-- [ ] Vista de administrador de una ruta activa: mapa/lista se redibujan con el estado más reciente (última tienda entregada, cuál está en curso)
+- [x] Hook de polling (`features/routes/useRouteLiveStatus.ts`): `select` liviano de `route_stops` por `route_id` cada 10–15 s, pausado con `visibilitychange` y cortado fuera de la vista de esa ruta (ver `docs/PLAN_V2.md` §6)
+- [x] Vista de administrador de una ruta activa: la lista se redibuja con el estado más reciente (última tienda entregada, cuál está en curso)
 **Hecho cuando:** el administrador, mirando una ruta activa, ve reflejado un "Ya llegué"/"Entregado" del chofer dentro de ~15 s, sin mantener una conexión abierta.
+
+> **Nota de cierre (2026-09-21).** Hecho: `src/features/routes/useRouteLiveStatus.ts` (`select id,
+> position, status, arrived_at, delivered_at` de `route_stops`, cada 12 s) — sin estado propio,
+> llama a un `onUpdate` por ronda (patrón "callback desde un efecto" en vez de un segundo `useState`
+> + `useEffect`, ver `docs/DECISIONS.md`); se pausa con `document.visibilitychange` (mismo patrón
+> que `useGeolocationLifecycle`) y solo corre mientras `route.status === 'active'`, cortándose solo
+> al finalizar/cancelar la ruta o salir de la pantalla, sin recargar. `mergeRouteStopLiveStates`
+> (`features/routes/routeStops.ts`, con tests) aplica el resultado sobre `route.stops` pisando solo
+> `status`/`arrivedAt`/`deliveredAt`. Enganchado en `useRouteDetailActions.ts`, que ya gobierna el
+> estado de `RouteDetailScreen`. Se agregó un indicador de estado (chip + color de placa,
+> "Pendiente"/"Entregando"/"Entregado") a cada fila de `RouteStopsEditor` — antes la fila solo
+> mostraba el resumen del pedido, así que el cambio de estado no tenía nada visible que lo
+> reflejara. No hay mapa en esta pantalla del administrador (solo la lista, ver Fase 3): el sondeo
+> redibuja la lista, que es lo que existe. `npm run check` en verde (224 tests). Cómo probarlo a
+> mano: con el bloqueante de la Fase 5 ya resuelto (Anonymous Sign-Ins activado), activar una ruta
+> desde `/admin`, abrir su detalle en una pestaña y la app del chofer con su código en otra; marcar
+> "Ya llegué"/"Entregado" en la del chofer y ver que la fila correspondiente en `/admin` cambia de
+> chip/color dentro de los ~15 s siguientes sin recargar la pestaña del administrador; cambiar a otra
+> pestaña y volver para confirmar que el sondeo se pausó y retoma solo.
 
 ## Fase 7 — Resiliencia y pulido
 - [ ] Manejo de reintentos ante pérdida de señal durante la ejecución de una ruta activa (ver `docs/PLAN_V2.md` §9)

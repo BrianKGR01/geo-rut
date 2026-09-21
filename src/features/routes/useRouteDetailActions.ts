@@ -1,5 +1,5 @@
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { StoreRecord } from "@/features/stores/api";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseDb } from "@/lib/supabase/types";
@@ -12,7 +12,14 @@ import {
   type RouteSummary,
   type RouteWithStops,
 } from "./api";
-import { addRouteStop, removeRouteStop, reorderRouteStops } from "./routeStops";
+import {
+  addRouteStop,
+  mergeRouteStopLiveStates,
+  removeRouteStop,
+  reorderRouteStops,
+  type RouteStopLiveState,
+} from "./routeStops";
+import { useRouteLiveStatus } from "./useRouteLiveStatus";
 
 /**
  * Estado + mutaciones de la pantalla de detalle de ruta (activar/finalizar/cancelar, asignar
@@ -24,6 +31,13 @@ export function useRouteDetailActions(initialRoute: RouteWithStops, currentUserI
   const [route, setRoute] = useState(initialRoute);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+
+  // Seguimiento casi en tiempo real (docs/PLAN_V2.md §6): mientras la ruta está activa, refleja acá
+  // "Ya llegué"/"Entregado" del chofer sin que el administrador tenga que recargar la pantalla.
+  const applyLiveStates = useCallback((liveStates: RouteStopLiveState[]) => {
+    setRoute((prev) => ({ ...prev, stops: mergeRouteStopLiveStates(prev.stops, liveStates) }));
+  }, []);
+  useRouteLiveStatus(route.id, route.status, applyLiveStates);
 
   const runStatusAction = async (action: (supabase: SupabaseDb) => Promise<RouteSummary>) => {
     setBusy(true);
